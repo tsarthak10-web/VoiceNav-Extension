@@ -38,6 +38,32 @@
       color: #333;
       font-weight: bold;
     }
+    
+    /* --- NEW STYLES --- */
+    #logContainer {
+      text-align: left;
+      margin-top: 15px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+    #logContainer strong {
+      font-size: 12px;
+      color: #333;
+    }
+    #logList {
+      padding-left: 15px;
+      margin: 5px 0 0;
+      list-style-type: none;
+    }
+    #logList li {
+      font-size: 12px;
+      color: #555;
+      word-wrap: break-word;
+    }
+    /* --- END OF NEW STYLES --- */
+
   </style>
 </head>
 <body>
@@ -45,6 +71,12 @@
   <div id="status">Status: Stopped</div>
   <button id="startButton">Start Listening</button>
   <button id="stopButton">Stop Listening</button>
+
+  <div id="logContainer">
+    <strong>Command Log:</strong>
+    <ul id="logList">
+      </ul>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>

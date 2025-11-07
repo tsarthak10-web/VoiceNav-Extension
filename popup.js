@@ -1,6 +1,16 @@
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const statusDiv = document.getElementById('status');
+const logList = document.getElementById('logList'); // NEW
+
+// NEW: Helper function to add an entry to the log UI
+function addLogEntry(command) {
+  const li = document.createElement('li');
+  li.textContent = `> ${command}`;
+  logList.appendChild(li);
+  // Auto-scroll to the bottom
+  logList.parentElement.scrollTop = logList.parentElement.scrollHeight;
+}
 
 // Helper function to update the popup's UI
 function updateUI(isListening) {
@@ -9,17 +19,29 @@ function updateUI(isListening) {
   stopButton.disabled = !isListening;
 }
 
-// 1. When the popup opens, ask the content script for its current status
+// 1. When the popup opens, get the status AND the command log
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (tabs[0]) {
+    // Get status (existing)
     chrome.tabs.sendMessage(tabs[0].id, { command: "getStatus" }, (response) => {
       if (chrome.runtime.lastError) {
-        // Content script might not be injected yet (e.g., on chrome:// pages)
         statusDiv.textContent = 'Error. Reload page.';
         startButton.disabled = true;
         stopButton.disabled = true;
       } else {
         updateUI(response.isListening);
+      }
+    });
+
+    // NEW: Get the full log history
+    chrome.tabs.sendMessage(tabs[0].id, { command: "getLog" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn(chrome.runtime.lastError.message);
+      } else if (response && response.log) {
+        logList.innerHTML = ''; // Clear old list
+        response.log.forEach(command => {
+          addLogEntry(command);
+        });
       }
     });
   }
@@ -28,25 +50,26 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 // 2. Add listener for the START button
 startButton.addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { command: "startListening" }, (response) => {
-      // The update will now be handled by the runtime listener below
-    });
+    chrome.tabs.sendMessage(tabs[0].id, { command: "startListening" });
   });
 });
 
 // 3. Add listener for the STOP button
 stopButton.addEventListener('click', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { command: "stopListening" }, (response) => {
-      // The update will now be handled by the runtime listener below
-    });
+    chrome.tabs.sendMessage(tabs[0].id, { command: "stopListening" });
   });
 });
 
-// 4. NEW: Listen for real-time status updates from content.js
+// 4. Listen for real-time updates from content.js
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Check if this is the status update message we're looking for
+  // Listen for status updates (existing)
   if (message.statusUpdate === true) {
     updateUI(message.isListening);
+  }
+
+  // NEW: Listen for new log entries
+  if (message.newLogEntry) {
+    addLogEntry(message.newLogEntry);
   }
 });

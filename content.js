@@ -7,8 +7,9 @@ if (!SpeechRecognition) {
   console.error("VoiceNav Error: Speech Recognition API not supported.");
 } else {
   const recognition = new SpeechRecognition();
-  let isListening = false; // Our new state variable
-  
+  let isListening = false;
+  let commandLog = []; // NEW: To store command history
+
   // Configure recognition
   recognition.continuous = true;
   recognition.interimResults = false;
@@ -17,7 +18,7 @@ if (!SpeechRecognition) {
   // --- Core Recognition Functions ---
 
   function startListening() {
-    if (isListening) return; // Don't start if already started
+    if (isListening) return;
     isListening = true;
     try {
       recognition.start();
@@ -25,17 +26,15 @@ if (!SpeechRecognition) {
     } catch (e) {
       console.warn("VoiceNav:", e.message);
     }
-    // Broadcast the status change to the popup
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: true });
   }
 
   function stopListening() {
-    if (!isListening) return; // Don't stop if already stopped
+    if (!isListening) return;
     isListening = false;
     recognition.stop();
-    synthesis.cancel(); // Stop any speech
+    synthesis.cancel();
     speak("Voice navigation deactivated.");
-    // Broadcast the status change to the popup
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: false });
   }
 
@@ -45,12 +44,15 @@ if (!SpeechRecognition) {
     const lastResult = event.results[event.results.length - 1];
     const command = lastResult[0].transcript.trim().toLowerCase();
 
+    // NEW: Log and broadcast the command
+    commandLog.push(command);
+    chrome.runtime.sendMessage({ newLogEntry: command });
+
     console.log("VoiceNav Command:", command);
     handleCommand(command);
   };
 
   recognition.onend = () => {
-    // Only restart if we are *supposed* to be listening
     if (isListening) {
       try {
         recognition.start();
@@ -88,12 +90,10 @@ if (!SpeechRecognition) {
     } else if (command.includes("stop reading")) {
       synthesis.cancel();
     }
-    // --- START OF NEW CODE ---
     else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands")) {
       const helpText = "Here are the commands you can use: . Scroll down. . Scroll up. . Go back. . Go forward. . Open first link. . Read page. . Stop reading. . and . Help.";
       speak(helpText);
     }
-    // --- END OF NEW CODE ---
   }
 
   function speak(text) {
@@ -102,7 +102,6 @@ if (!SpeechRecognition) {
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.onend = () => {
-      // Only restart recognition if we are in the listening state
       if (isListening) {
         try {
           recognition.start();
@@ -111,7 +110,6 @@ if (!SpeechRecognition) {
         }
       }
     };
-    // Pause recognition while we are speaking
     if (isListening) {
         recognition.stop();
     }
@@ -146,7 +144,6 @@ if (!SpeechRecognition) {
       stopListening();
       sendResponse({ status: "Listening stopped." });
     } else if (request.command === "toggleListening") {
-      // This is from the keyboard shortcut
       if (isListening) {
         stopListening();
       } else {
@@ -154,9 +151,10 @@ if (!SpeechRecognition) {
       }
       sendResponse({ status: isListening ? "Now listening" : "Now stopped" });
     } else if (request.command === "getStatus") {
-      // This is from the popup asking for the current state
       sendResponse({ isListening: isListening });
+    } else if (request.command === "getLog") { // NEW: Send the log when requested
+      sendResponse({ log: commandLog });
     }
-    return true; // Keep the message channel open for async response
+    return true;
   });
 }
