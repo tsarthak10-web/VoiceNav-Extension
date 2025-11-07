@@ -23,29 +23,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. Handle speak commands
   if (request.command === "speak") {
     if (sender.tab) { 
-      
-      // Get both voice and rate
       chrome.storage.sync.get(['selectedVoice', 'speechRate'], (result) => {
-        
         chrome.tts.stop(); 
         const speakOptions = {
           onEvent: (event) => {
             if (event.type === 'end' || event.type === 'interrupted' || event.type === 'cancelled') {
-              chrome.tabs.sendMessage(sender.tab.id, { command: "speechEnded" });
+              // Check if the tab still exists before sending a message
+              chrome.tabs.get(sender.tab.id, (tab) => {
+                if (!chrome.runtime.lastError) {
+                  chrome.tabs.sendMessage(sender.tab.id, { command: "speechEnded" });
+                }
+              });
             }
           }
         };
-
-        // Add saved voice
         if (result.selectedVoice) {
           speakOptions.voiceName = result.selectedVoice;
         }
-
-        // Add saved rate
         if (result.speechRate) {
           speakOptions.rate = parseFloat(result.speechRate);
         }
-        
         chrome.tts.speak(request.text, speakOptions);
       });
     }
@@ -64,24 +61,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ isActive: isActive });
   }
   
-  // 3. Handle Tab Management
+  // --- 3. MODIFIED: Handle Tab Management ---
   if (request.command === "closeTab") {
     if (sender.tab) {
+      activeTabs.delete(sender.tab.id); // Remove from set
       chrome.tabs.remove(sender.tab.id);
     }
   } else if (request.command === "newTab") {
-    chrome.tabs.create({ active: true });
+    // 1. Deactivate old tab
+    if (sender.tab) {
+       activeTabs.delete(sender.tab.id);
+       chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
+    }
+    // 2. Create and activate new tab
+    chrome.tabs.create({ url: "https://www.google.com", active: true }, (newTab) => {
+      activeTabs.add(newTab.id);
+    });
   } else if (request.command === "search" && request.query) {
+    // 1. Deactivate old tab
+    if (sender.tab) {
+       activeTabs.delete(sender.tab.id);
+       chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
+    }
+    // 2. Create and activate new tab
     const url = `https://www.google.com/search?q=${encodeURIComponent(request.query)}`;
-    chrome.tabs.create({ url: url });
+    chrome.tabs.create({ url: url, active: true }, (newTab) => {
+      activeTabs.add(newTab.id);
+    });
   } else if (request.command === "openUrl" && request.url) {
+    // 1. Deactivate old tab
+    if (sender.tab) {
+       activeTabs.delete(sender.tab.id);
+       chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
+    }
+    // 2. Create and activate new tab
     let url = request.url;
-    // Add "https://" if no protocol is specified
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
     }
-    chrome.tabs.create({ url: url });
+    chrome.tabs.create({ url: url, active: true }, (newTab) => {
+      activeTabs.add(newTab.id);
+    });
   }
+  // --- END MODIFIED ---
   
   return true;
 });

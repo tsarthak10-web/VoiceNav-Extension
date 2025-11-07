@@ -64,21 +64,19 @@ if (!SpeechRecognition) {
     }, 120000); // 2 minutes (120,000 ms)
   }
 
-  // --- MODIFIED: Core Recognition Functions ---
+  // --- Core Recognition Functions ---
   async function startListening() {
     if (isListening) return; 
     
-    // --- NEW: Check permissions first ---
+    // Check permissions first
     let permissionState;
     try {
-      // Use the Permissions API to check
       const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
       permissionState = permissionStatus.state;
     } catch (e) {
       console.warn("Could not query permissions. Assuming 'prompt'.", e.message);
       permissionState = 'prompt'; // Fallback if API fails
     }
-    // --- END NEW ---
 
     if (permissionState === 'denied') {
       speak("Microphone access is blocked. You must go to browser settings to allow it.");
@@ -86,7 +84,6 @@ if (!SpeechRecognition) {
     }
 
     if (permissionState === 'prompt') {
-      // This is the key: Guide the user *before* the prompt appears
       speak("This site needs permission to use your microphone. The prompt will appear now. Press Tab, then Enter, to allow.");
     }
 
@@ -96,14 +93,12 @@ if (!SpeechRecognition) {
     try {
       recognition.start();
       
-      // We only say "activated" if permission was already granted
       if (permissionState === 'granted') {
         speak("Voice navigation activated.");
       }
       resetInactivityTimer(); // Start the timer
       
     } catch (e) {
-      // This might catch errors if the prompt is dismissed
       console.warn("VoiceNav:", e.message);
       isListening = false;
     }
@@ -129,7 +124,6 @@ if (!SpeechRecognition) {
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: false });
     // NO speak() call here
   }
-  // --- END MODIFIED ---
 
   // --- Event Handlers for Recognition ---
   recognition.onresult = (event) => {
@@ -138,7 +132,6 @@ if (!SpeechRecognition) {
     const lastResult = event.results[event.results.length - 1];
     const command = lastResult[0].transcript.trim().toLowerCase();
     
-    // Check if permission was just granted
     if (!isListening && (command.includes('yes') || command.includes('confirm'))) {
       if (navigator.permissions) {
          navigator.permissions.query({name: 'microphone'}).then(status => {
@@ -166,7 +159,6 @@ if (!SpeechRecognition) {
     }
   };
   recognition.onerror = (event) => {
-    // A common error is 'not-allowed', which happens if the user *denies* the prompt
     if (event.error === 'not-allowed') {
       speak("Microphone access was denied.");
       stopListening();
@@ -357,13 +349,13 @@ if (!SpeechRecognition) {
   function findSearchInput() {
     const selectors = [
         'input[type="search"]',
-        'input[role="searchbox"]',
-        'input[name="q"]',
-        'input[name="s"]',
-        'input[id*="search"]',
-        'input[placeholder*="search"]',
-        'input[class*="search"]',
-        'input[name="query"]'
+        '[role="searchbox"]',
+        'input[name="q"], textarea[name="q"]',
+        'input[name="s"], textarea[name="s"]',
+        '[id*="search"]',
+        '[placeholder*="search"]',
+        '[class*="search"]',
+        'input[name="query"], textarea[name="query"]'
     ];
     for (const selector of selectors) {
         const input = document.querySelector(selector);
@@ -430,7 +422,7 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. Message Listener
+  // 5. MODIFIED: Message Listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -447,6 +439,13 @@ if (!SpeechRecognition) {
         startListening();
       }
       sendResponse({ status: isListening ? "Now listening" : "Now stopped" });
+    
+    // --- NEW: Handle silent stop ---
+    } else if (request.command === "silentStop") {
+      stopListening(); // Call the silent stop
+      sendResponse({ status: "silently stopped" });
+    // --- END NEW ---
+    
     } else if (request.command === "getStatus") {
       sendResponse({ isListening: isListening });
     } else if (request.command === "getLog") {
