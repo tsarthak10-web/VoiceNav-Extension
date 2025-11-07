@@ -42,9 +42,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- NEW: Manage Shortcuts Button Listener ---
+  // --- Manage Shortcuts Button Listener ---
   document.getElementById('manageShortcutsBtn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
+
+  // --- NEW: Speed Slider Logic ---
+  const speedSlider = document.getElementById('speedSlider');
+  const speedValue = document.getElementById('speedValue');
+
+  // 1. Load saved speed
+  chrome.storage.sync.get('speechRate', (data) => {
+    const rate = data.speechRate || 1.0;
+    speedSlider.value = rate;
+    speedValue.textContent = `${parseFloat(rate).toFixed(1)}x`;
+  });
+
+  // 2. Listen for slider changes
+  speedSlider.addEventListener('input', () => {
+    const rate = speedSlider.value;
+    speedValue.textContent = `${parseFloat(rate).toFixed(1)}x`;
+    chrome.storage.sync.set({ speechRate: rate });
   });
   // --- END NEW ---
 });

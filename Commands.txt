@@ -1,0 +1,38 @@
+--- VoiceNav Commands ---
+
+[Navigation]
+- scroll down
+- go down
+- scroll up
+- go up
+- go back
+- previous page
+- back
+- go forward
+- next page
+- forward
+
+[Content Reading]
+- read page
+- start reading
+- read article
+- read this section
+- stop reading
+- stop
+- read buttons
+- list buttons
+
+[Interaction]
+- open first link
+- open first article
+- click first link
+
+[System & Confirmation]
+- help
+- what can i say
+- show commands
+- commands
+- yes
+- confirm
+- no
+- cancel
