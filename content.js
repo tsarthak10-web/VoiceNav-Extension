@@ -14,12 +14,12 @@ if (!SpeechRecognition) {
   // --- Speech Queue ---
   let speechQueue = [];
   let isSpeakingQueue = false;
-  let chunksReadSincePrompt = 0;
+  let chunksReadSincePrompt = 0; // This will count sentences
   
-  // --- NEW: Inactivity Timer ---
+  // --- Inactivity Timer ---
   let inactivityTimer = null;
   
-  // --- Command List Array (unchanged) ---
+  // --- Command List Array ---
   const allCommandsChunks = [
       "Here are all the commands.",
       "Category: Navigation.",
@@ -38,6 +38,7 @@ if (!SpeechRecognition) {
       "read buttons, or, list buttons.",
       "Category: Interaction.",
       "open first link.",
+      "find search, or, search this website.",
       "Category: System.",
       "help, or, what can i say.",
       "read all commands.",
@@ -50,7 +51,7 @@ if (!SpeechRecognition) {
   recognition.interimResults = false;
   recognition.lang = 'en-US';
 
-  // --- NEW: Timer Function ---
+  // --- Timer Function ---
   function resetInactivityTimer() {
     if (inactivityTimer) {
       clearTimeout(inactivityTimer);
@@ -62,24 +63,54 @@ if (!SpeechRecognition) {
       }
     }, 120000); // 2 minutes (120,000 ms)
   }
-  // --- END NEW ---
 
   // --- MODIFIED: Core Recognition Functions ---
-  function startListening() {
+  async function startListening() {
     if (isListening) return; 
+    
+    // --- NEW: Check permissions first ---
+    let permissionState;
+    try {
+      // Use the Permissions API to check
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+      permissionState = permissionStatus.state;
+    } catch (e) {
+      console.warn("Could not query permissions. Assuming 'prompt'.", e.message);
+      permissionState = 'prompt'; // Fallback if API fails
+    }
+    // --- END NEW ---
+
+    if (permissionState === 'denied') {
+      speak("Microphone access is blocked. You must go to browser settings to allow it.");
+      return; // Can't do anything else
+    }
+
+    if (permissionState === 'prompt') {
+      // This is the key: Guide the user *before* the prompt appears
+      speak("This site needs permission to use your microphone. The prompt will appear now. Press Tab, then Enter, to allow.");
+    }
+
+    // Now, actually try to start
     chrome.runtime.sendMessage({ command: "startListening" });
     isListening = true;
     try {
       recognition.start();
-      speak("Voice navigation activated.");
+      
+      // We only say "activated" if permission was already granted
+      if (permissionState === 'granted') {
+        speak("Voice navigation activated.");
+      }
       resetInactivityTimer(); // Start the timer
+      
     } catch (e) {
+      // This might catch errors if the prompt is dismissed
       console.warn("VoiceNav:", e.message);
+      isListening = false;
     }
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: true });
   }
 
-  // MODIFIED: This is now a "silent" stop
+  // This is a "silent" stop
   function stopListening() {
     if (!isListening) return;
     chrome.runtime.sendMessage({ command: "stopListening" });
@@ -100,18 +131,31 @@ if (!SpeechRecognition) {
   }
   // --- END MODIFIED ---
 
-  // --- MODIFIED: Event Handlers for Recognition ---
+  // --- Event Handlers for Recognition ---
   recognition.onresult = (event) => {
     resetInactivityTimer(); // Reset timer on successful command
     
     const lastResult = event.results[event.results.length - 1];
     const command = lastResult[0].transcript.trim().toLowerCase();
+    
+    // Check if permission was just granted
+    if (!isListening && (command.includes('yes') || command.includes('confirm'))) {
+      if (navigator.permissions) {
+         navigator.permissions.query({name: 'microphone'}).then(status => {
+           if (status.state === 'granted') {
+             speak("Voice navigation activated.");
+             isListening = true;
+             chrome.runtime.sendMessage({ statusUpdate: true, isListening: true });
+           }
+         });
+      }
+    }
+    
     commandLog.push(command);
     chrome.runtime.sendMessage({ newCommandLogEntry: command }); 
     console.log("VoiceNav Command:", command);
     handleCommand(command);
   };
-  // (onend, onerror are unchanged)
   recognition.onend = () => {
     if (isListening) {
       try {
@@ -122,15 +166,44 @@ if (!SpeechRecognition) {
     }
   };
   recognition.onerror = (event) => {
+    // A common error is 'not-allowed', which happens if the user *denies* the prompt
+    if (event.error === 'not-allowed') {
+      speak("Microphone access was denied.");
+      stopListening();
+    }
     console.error("VoiceNav Error:", event.error);
   };
 
-  // --- handleCommand (MODIFIED "stop reading") ---
+  // --- handleCommand ---
   function handleCommand(command) {
     if (pendingAction) {
       const action = pendingAction; 
       pendingAction = null; 
 
+      if (action.type === 'performSearch') {
+        const searchBar = action.data;
+        const query = command; 
+        
+        if (document.body.contains(searchBar)) {
+          searchBar.value = query; // Fill the search bar
+          
+          const form = searchBar.closest('form');
+          if (form) {
+            form.submit();
+          } else {
+            const enterEvent = new KeyboardEvent('keydown', {
+              bubbles: true, cancelable: true, keyCode: 13, key: 'Enter'
+            });
+            searchBar.dispatchEvent(enterEvent);
+          }
+          
+          speak(`Searching for ${query}`);
+        } else {
+          speak("Sorry, the search bar is no longer available.");
+        }
+        return; // Action is handled
+      }
+      
       if (action.type === 'readButtons') {
         if (command.includes('yes') || command.includes('confirm')) {
           const buttonList = action.data.join(' . ');
@@ -158,7 +231,7 @@ if (!SpeechRecognition) {
         if (command.includes('yes') || command.includes('confirm')) {
           speechQueue = [...allCommandsChunks]; 
           isSpeakingQueue = true;
-          chunksReadSincePrompt = -1000; 
+          chunksReadSincePrompt = -1000; // Bypass 5-line limit
           speakNextChunk();
         } else if (command.includes('no') || command.includes('cancel')) {
           speak("Okay, action cancelled.");
@@ -202,7 +275,6 @@ if (!SpeechRecognition) {
     } else if (command.includes("read page") || command.includes("start reading") || command.includes("read article") || command.includes("read this section")) {
       readMainContent();
     } else if (command.includes("stop reading") || command === "stop") {
-      // MODIFIED: Speak *before* calling silent stop
       speechQueue = [];
       isSpeakingQueue = false;
       chunksReadSincePrompt = 0;
@@ -229,10 +301,19 @@ if (!SpeechRecognition) {
       } else {
         speak("No links found.");
       }
+    } else if (command.includes("find search") || command.includes("search website") || command.includes("search this site")) {
+      const searchInput = findSearchInput();
+      if (searchInput) {
+        searchInput.focus();
+        pendingAction = { type: 'performSearch', data: searchInput };
+        speak("What do you want to search for?");
+      } else {
+        speak("Sorry, I could not find a search bar on this page.");
+      }
     
     // --- CATEGORY: System ---
     } else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands") || command === "commands") {
-      const helpText = "Basic commands are: . read page. . stop reading. . go back. . close tab. . To hear all commands, say, . read all commands.";
+      const helpText = "Basic commands are: . read page. . stop reading. . find search. . close tab. . To hear all commands, say, . read all commands.";
       speak(helpText);
     } else if (command.includes("read all commands")) {
       pendingAction = { type: 'confirmReadAllCommands' };
@@ -240,28 +321,28 @@ if (!SpeechRecognition) {
     }
   }
 
-  // --- speak function (unchanged) ---
+  // --- speak function ---
   function speak(text) {
     speechLog.push(text);
-    chrome.runtime.sendMessage({ newSpeechLogEntry: text });
+    chrome.runtime.sendMessage({ newCommandLogEntry: text });
     if (isListening) {
         recognition.stop();
     }
     chrome.runtime.sendMessage({ command: "speak", text: text });
   }
   
-  // --- speakNextChunk (unchanged) ---
+  // --- speakNextChunk ---
   function speakNextChunk() {
     if (isSpeakingQueue && chunksReadSincePrompt >= 5) {
-      isSpeakingQueue = false;
-      chunksReadSincePrompt = 0; 
+      isSpeakingQueue = false; // Pause the queue
+      chunksReadSincePrompt = 0; // Reset the counter
       pendingAction = { type: 'continueReading' };
       speak("Do you want to continue?");
-      return; 
+      return; // Stop here and wait for user input
     }
     if (speechQueue.length > 0 && isSpeakingQueue) {
       const chunk = speechQueue.shift();
-      chunksReadSincePrompt++;
+      chunksReadSincePrompt++; // This will be -999, -998... for "read all"
       speak(chunk);
     } else {
       isSpeakingQueue = false;
@@ -271,36 +352,65 @@ if (!SpeechRecognition) {
       }
     }
   }
+  
+  // --- findSearchInput() ---
+  function findSearchInput() {
+    const selectors = [
+        'input[type="search"]',
+        'input[role="searchbox"]',
+        'input[name="q"]',
+        'input[name="s"]',
+        'input[id*="search"]',
+        'input[placeholder*="search"]',
+        'input[class*="search"]',
+        'input[name="query"]'
+    ];
+    for (const selector of selectors) {
+        const input = document.querySelector(selector);
+        if (input && (input.offsetWidth > 0 || input.offsetHeight > 0)) {
+            return input;
+        }
+    }
+    return null;
+  }
 
-  // --- readMainContent (unchanged) ---
+  // --- readMainContent ---
   function readMainContent() {
     let contentChunks = [];
+    
     const mainElement = document.querySelector('article') || 
                         document.querySelector('main') || 
                         document.querySelector('div#mw-content-text') || 
                         document.body;
+    
     const mainClone = mainElement.cloneNode(true);
+
     const junkSelectors = [
         'aside', 'nav', 'header', 'footer',
         '.infobox', '.sidebar', '.widget', '.ad', '.ads',
         '.advert', '.comment', '.promo', '.noprint',
         '[class*="sidebar"]', '[class*="widget"]', '[class*="ad-"]',
-        '[class*="promo-"]', '[class*="comment-"]', '[class*="footer"]',
+        '[class*="promo-"]', '[class**="comment-"]', '[class*="footer"]',
         '[class*="header"]', '[class*="infobox"]', '[role="navigation"]',
         '[role="complementary"]', '[role="banner"]', '[role="contentinfo"]',
         '#footer', '#header', '#sidebar'
     ];
+
     mainClone.querySelectorAll(junkSelectors.join(', ')).forEach(el => {
-        el.remove();
+        el.remove(); // Remove the junk
     });
+
     const readableElements = mainClone.querySelectorAll('h1, h2, h3, h4, p, li');
+
     if (readableElements.length > 0) {
       readableElements.forEach(el => {
         el.querySelectorAll(
           'sup', 'button', '[role="button"]',
           '[aria-hidden="true"]', '.mw-editsection'
         ).forEach(child => child.remove());
+        
         const cleanText = el.textContent.trim();
+        
         if (cleanText.length > 0) {
           const sentences = cleanText.split('.')
                                      .filter(s => s.trim().length > 0)
@@ -309,6 +419,7 @@ if (!SpeechRecognition) {
         }
       });
     }
+
     if (contentChunks.length === 0) {
       speak("No readable text content found.");
     } else {
@@ -319,21 +430,19 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. MODIFIED: Listen for messages
+  // 5. Message Listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
       sendResponse({ status: "Listening started." });
     } else if (request.command === "stopListening") {
-      // This comes from the popup button
       speak("Voice navigation deactivated.");
-      stopListening(); // Call silent stop
+      stopListening();
       sendResponse({ status: "Listening stopped." });
     } else if (request.command === "toggleListening") {
-      // This comes from the keyboard shortcut
       if (isListening) {
         speak("Voice navigation deactivated.");
-        stopListening(); // Call silent stop
+        stopListening();
       } else {
         startListening();
       }
@@ -355,7 +464,7 @@ if (!SpeechRecognition) {
     return true; 
   });
 
-  // --- Auto-start logic (unchanged) ---
+  // --- Auto-start logic ---
   (() => {
     const autoStartFlag = sessionStorage.getItem('voiceNavAutoStart');
     if (autoStartFlag === 'true') {

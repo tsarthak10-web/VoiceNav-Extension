@@ -35,6 +35,9 @@
 - open first link
 - open first article
 - click first link
+- find search
+- search website
+- search this site
 
 [System & Confirmation]
 - help

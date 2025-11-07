@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <style>
   :root {
-    /* ... (all CSS variables are the same) ... */
+    /* --- Light Mode (Default) --- */
     --bg-color: #ffffff;
     --bg-secondary: #f5f5f5;
     --text-color: #222222;
@@ -16,7 +16,9 @@
     --danger-hover: #a71d2a;
     --disabled-color: #cccccc;
   }
+
   body.dark-mode {
+    /* --- Dark Mode Variables --- */
     --bg-color: #2b2b2b;
     --bg-secondary: #3c3c3c;
     --text-color: #e0e0e0;
@@ -24,6 +26,7 @@
     --border-color: #4a4a4a;
     --disabled-color: #555555;
   }
+
   body {
     width: 260px;
     margin: 0;
@@ -32,6 +35,7 @@
     color: var(--text-color);
     transition: height 0.1s ease-out;
   }
+
   .view {
     padding: 16px;
     box-sizing: border-box;
@@ -92,6 +96,7 @@
     font-size: 16px;
     font-weight: 600;
   }
+
   .button-group {
     display: flex;
     gap: 10px;
@@ -125,7 +130,7 @@
     background-color: var(--danger-hover);
   }
 
-  /* --- Settings, Logs, Commands --- */
+  /* --- Settings & Logs --- */
   .setting-item {
     display: flex;
     justify-content: space-between;
@@ -157,7 +162,7 @@
     font-weight: 600;
     color: var(--text-light);
   }
-  
+
   .log-container {
     text-align: left;
     margin-top: 16px;
@@ -181,6 +186,7 @@
     padding: 2px 4px;
   }
   
+  /* --- Command List Styles --- */
   .cmd-list {
     max-height: 250px;
     overflow-y: auto;
@@ -204,14 +210,19 @@
     color: var(--text-light);
     margin-bottom: 2px;
   }
-  
+
+  /* --- Toggle Switch --- */
   .switch {
     position: relative;
     display: inline-block;
     width: 50px;
     height: 28px;
   }
-  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
   .slider {
     position: absolute;
     cursor: pointer;
@@ -234,8 +245,14 @@
     transition: .4s;
     border-radius: 50%;
   }
-  input:checked + .slider { background-color: var(--accent-color); }
-  input:checked + .slider:before { transform: translateX(22px); }
+  input:checked + .slider {
+    background-color: var(--accent-color);
+  }
+  input:checked + .slider:before {
+    transform: translateX(22px);
+  }
+
+  /* --- Settings Button Style --- */
   .button-settings {
     width: 100%;
     margin-top: 20px;
@@ -248,7 +265,10 @@
     color: var(--text-color);
     border: 1px solid var(--border-color);
   }
-  .button-settings:hover { background-color: var(--border-color); }
+  .button-settings:hover {
+    background-color: var(--border-color);
+  }
+  
 </style>
 </head>
 <body>
@@ -284,8 +304,8 @@
         <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"></path></svg>
       </button>
       <h3>Settings</h3>
-      <span style="width: 28px;"></span>
-    </div>
+      <span style="width: 28px;"></span> </div>
+    
     <div class="setting-item">
       <label for="darkModeToggle">Dark Mode</label>
       <label class="switch">
@@ -293,12 +313,14 @@
         <span class="slider"></span>
       </label>
     </div>
+
     <div class="setting-item-column">
       <label for="voiceSelect" style="margin-top: 10px;">Select Voice:</label>
       <select id="voiceSelect">
         <option value="">Loading voices...</option>
       </select>
     </div>
+
     <div class="setting-item-column">
       <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-top: 10px;">
         <label for="speedSlider">Speaking Speed</label>
@@ -306,7 +328,9 @@
       </div>
       <input type="range" id="speedSlider" min="0.5" max="2.5" step="0.1" value="1.0">
     </div>
+    
     <button id="manageShortcutsBtn" class="button-settings">Manage Shortcuts</button>
+
   </div>
 
   <div id="logs-view" class="view">
@@ -360,6 +384,7 @@
       <strong>Interaction</strong>
       <ul>
         <li>"open first link"</li>
+        <li>"find search", "search website"</li>
       </ul>
       <strong>System</strong>
       <ul>

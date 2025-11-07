@@ -23,7 +23,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. Handle speak commands
   if (request.command === "speak") {
     if (sender.tab) { 
+      
+      // Get both voice and rate
       chrome.storage.sync.get(['selectedVoice', 'speechRate'], (result) => {
+        
         chrome.tts.stop(); 
         const speakOptions = {
           onEvent: (event) => {
@@ -32,12 +35,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
           }
         };
+
+        // Add saved voice
         if (result.selectedVoice) {
           speakOptions.voiceName = result.selectedVoice;
         }
+
+        // Add saved rate
         if (result.speechRate) {
           speakOptions.rate = parseFloat(result.speechRate);
         }
+        
         chrome.tts.speak(request.text, speakOptions);
       });
     }
@@ -56,7 +64,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ isActive: isActive });
   }
   
-  // --- 3. NEW: Handle Tab Management ---
+  // 3. Handle Tab Management
   if (request.command === "closeTab") {
     if (sender.tab) {
       chrome.tabs.remove(sender.tab.id);
@@ -74,7 +82,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     chrome.tabs.create({ url: url });
   }
-  // --- END NEW ---
   
   return true;
 });

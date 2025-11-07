@@ -54,8 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
   });
   
-  // --- "Read All" button listener removed ---
-
   // --- Speed Slider Logic ---
   const speedSlider = document.getElementById('speedSlider');
   const speedValue = document.getElementById('speedValue');

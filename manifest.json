@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
   "name": "VoiceNav - Voice-Guided Navigator",
-  "version": "1.4",
+  "version": "1.5",
   "description": "Browse the web using natural speech commands.",
   "permissions": [
     "activeTab",
     "scripting",
     "tts",
-    "storage" 
+    "storage"
   ],
   "content_scripts": [
     {
