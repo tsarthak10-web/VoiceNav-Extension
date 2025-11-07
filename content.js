@@ -1,6 +1,6 @@
 // 1. Initialize Speech Recognition (STT) and Synthesis (TTS)
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-// const synthesis = window.speechSynthesis; // <-- We NO LONGER use this
+// const synthesis = window.speechSynthesis; // We no longer use this directly
 
 // Check if the browser supports the Web Speech API
 if (!SpeechRecognition) {
@@ -18,7 +18,7 @@ if (!SpeechRecognition) {
   recognition.lang = 'en-US';
 
   // --- Core Recognition Functions ---
-  // (startListening is unchanged)
+  // (startListening and stopListening are unchanged)
 
   function startListening() {
     if (isListening) return; 
@@ -38,24 +38,20 @@ if (!SpeechRecognition) {
     recognition.stop();
     pendingAction = null; 
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: false });
-    // Speak *after* setting state. This will stop previous speech.
     speak("Voice navigation deactivated."); 
   }
 
   // --- Event Handlers for Recognition ---
-  // (onresult and onend are unchanged)
+  // (onresult, onend, onerror are unchanged)
 
   recognition.onresult = (event) => {
     const lastResult = event.results[event.results.length - 1];
     const command = lastResult[0].transcript.trim().toLowerCase();
-
     commandLog.push(command);
     chrome.runtime.sendMessage({ newCommandLogEntry: command }); 
-
     console.log("VoiceNav Command:", command);
     handleCommand(command);
   };
-
   recognition.onend = () => {
     if (isListening) {
       try {
@@ -65,13 +61,12 @@ if (!SpeechRecognition) {
       }
     }
   };
-
   recognition.onerror = (event) => {
     console.error("VoiceNav Error:", event.error);
   };
 
   // --- Command and Control Logic ---
-  // (handleCommand is almost the same)
+  // (handleCommand is unchanged)
   
   function handleCommand(command) {
     if (pendingAction) {
@@ -88,7 +83,6 @@ if (!SpeechRecognition) {
         return; 
       }
     }
-
     if (command.includes("scroll down")) {
       window.scrollBy(0, 500);
     } else if (command.includes("scroll up")) {
@@ -108,8 +102,7 @@ if (!SpeechRecognition) {
     } else if (command.includes("read this section aloud") || command.includes("read page")) {
       readMainContent();
     } else if (command.includes("stop reading")) {
-      // MODIFIED: Tell the background TTS to stop
-      chrome.runtime.sendMessage({ command: "speak", text: "" }); // Sends empty text to stop
+      chrome.runtime.sendMessage({ command: "speak", text: "" }); 
     }
     else if (command.includes("read buttons") || command.includes("list buttons")) {
       const buttons = document.querySelectorAll('button, [role="button"]');
@@ -129,54 +122,94 @@ if (!SpeechRecognition) {
     }
   }
 
-  // --- NEW: speak() function ---
-  // This function now sends a message to background.js
+  // --- speak and isElementInViewport are unchanged ---
   function speak(text) {
-    // Log speech locally
     speechLog.push(text);
     chrome.runtime.sendMessage({ newSpeechLogEntry: text });
-
-    // Stop recognition *before* speaking
     if (isListening) {
         recognition.stop();
     }
-    
-    // Tell the background script to speak
     chrome.runtime.sendMessage({ command: "speak", text: text });
   }
-
-  // (isElementInViewport and readMainContent are unchanged)
   function isElementInViewport(el) {
     const rect = el.getBoundingClientRect();
     return (
         rect.top < window.innerHeight && rect.bottom > 0
     );
   }
+
+  // --- START OF MODIFIED readMainContent ---
   function readMainContent() {
     let content = '';
-    const mainElement = document.querySelector('main') || document.querySelector('article') || document.body;
-    const allReadableElements = mainElement.querySelectorAll('h1, h2, h3, p, li');
-    const visibleElements = Array.from(allReadableElements).filter(isElementInViewport);
-    if (visibleElements.length > 0) {
-      visibleElements.forEach(el => {
+    
+    // Select the best main content area
+    const mainElement = document.querySelector('div#mw-content-text') || 
+                        document.querySelector('article') || 
+                        document.querySelector('main') || 
+                        document.body;
+    
+    // Select all potential readable elements *within* that container
+    const allReadableElements = mainElement.querySelectorAll('h1, h2, h3, h4, p, li');
+
+    // --- NEW, MORE ROBUST FILTER ---
+    const visibleAndValidElements = Array.from(allReadableElements)
+      .filter(el => {
+        // 1. Is the element on the screen?
+        const inViewport = isElementInViewport(el);
+        
+        // 2. Is the element *inside* a container we want to ignore?
+        //    el.closest() checks the element itself and all its parents
+        const inJunk = el.closest(
+            '.infobox',     // Wikipedia infoboxes (the right-hand table)
+            '.sidebar',     // General sidebars
+            'nav',          // Navigation menus
+            '.noprint',     // "No print" sections
+            '.mw-indicators', // Wikipedia header indicators
+            '#siteSub',     // "From Wikipedia..."
+            '#catlinks',    // Category links at the bottom
+            '.portal',      // Wiki portals
+            '.sister-project' // Wikiquote, Wikivoyage, etc.
+        );
+        
+        // 3. Only include it if it's IN VIEWPORT and NOT IN JUNK
+        return inViewport && !inJunk;
+      });
+    // --- END OF NEW FILTER ---
+
+
+    if (visibleAndValidElements.length > 0) {
+      visibleAndValidElements.forEach(el => {
+        // Clone the element to avoid changing the live page
         const elClone = el.cloneNode(true);
+        
+        // Now we just clean up in-line junk
         elClone.querySelectorAll(
-          'sup.reference', 'button', '[role="button"]', '[aria-hidden="true"]'
+          'sup.reference',      // Wikipedia citations [1], [2]
+          '.mw-editsection',    // Wikipedia [edit] links
+          '[aria-hidden="true"]' // Screen-reader hidden content
         ).forEach(child => child.remove());
+        
+        // Get the cleaned text
         const cleanText = elClone.textContent.trim();
+        
+        // Add a period for better pause between elements
         if (cleanText.length > 0) {
-          content += cleanText + ' . ';
+          content += cleanText + '. ';
         }
       });
     }
+
     if (content.trim().length === 0) {
       speak("No readable text content found on the screen.");
     } else {
       speak(content);
     }
   }
+  // --- END OF MODIFIED readMainContent ---
 
-  // --- MODIFIED: Message Listener ---
+
+  // 5. Listen for messages from popup AND background script
+  // (Message Listener is unchanged)
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -198,9 +231,7 @@ if (!SpeechRecognition) {
     } else if (request.command === "getSpeechLog") {
       sendResponse({ log: speechLog });
     } 
-    // NEW: Listen for when speech has ended
     else if (request.command === "speechEnded") {
-      // Now we can safely restart recognition
       if (isListening) {
         try {
           recognition.start();
@@ -209,7 +240,7 @@ if (!SpeechRecognition) {
         }
       }
     }
-    return true; // Keep channel open
+    return true; 
   });
 
   // --- Auto-start logic (unchanged) ---
