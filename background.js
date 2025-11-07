@@ -50,14 +50,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   // --- NEW: Handle Beep ---
   else if (request.command === "playBeep") {
-    chrome.storage.sync.get(['speechRate'], (result) => {
-      chrome.tts.stop(); // Stop any current speech
-      // Play a short, high-pitched "click" sound
-      chrome.tts.speak("k", { 
-        rate: 2.5, // Play it super fast
-        pitch: 2.0, // Make it high-pitched
-        volume: 0.5 // Make it a bit quieter
-      });
+    chrome.tts.stop(); // Stop any current speech
+    // Play a short, high-pitched "click" sound
+    chrome.tts.speak("k", { 
+      rate: 2.5, // Play it super fast
+      pitch: 2.0, // Make it high-pitched
+      volume: 0.5 // Make it a bit quieter
     });
     return true; // Keep channel open
   }

@@ -32,6 +32,7 @@
 - show outline
 - stop reading
 - stop
+- stop listening
 - read buttons
 - list buttons
 

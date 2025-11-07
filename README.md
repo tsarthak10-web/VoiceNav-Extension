@@ -5,6 +5,7 @@ A Chrome extension designed to help visually impaired users navigate the web usi
 ## Features
 
 * **Voice-First Interface:** Control your browser, navigate pages, and access settings entirely with your voice.
+* **Audio Feedback:** Plays a quick "beep" sound on successful command recognition so you know you've been heard.
 * **Smart Content Reading:**
     * Say **"read page"** to read the main article from your current position, 5 sentences at a time.
     * Say **"list headings"** to get a spoken outline of the page's structure.
@@ -83,6 +84,7 @@ Here is a full list of commands the extension understands:
 - show outline
 - stop reading
 - stop
+- stop listening
 - read buttons
 - list buttons
 
@@ -104,11 +106,4 @@ Here is a full list of commands the extension understands:
 
 [System & Confirmation]
 - help
-- what can i say
-- show commands
-- commands
-- read all commands
-- yes
-- confirm
-- no
-- cancel
+- what

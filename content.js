@@ -22,7 +22,7 @@ if (!SpeechRecognition) {
   // --- Inactivity Timer ---
   let inactivityTimer = null;
   
-  // --- Command List Array ---
+  // --- Command List Array (UPDATED) ---
   const allCommandsChunks = [
       "Here are all the commands.",
       "Category: Navigation.",
@@ -39,7 +39,7 @@ if (!SpeechRecognition) {
       "go to [website dot com].",
       "Category: Content Reading.",
       "read page, or, start reading.",
-      "stop reading, or, stop.",
+      "stop reading, stop, or, stop listening.",
       "read buttons, or, list buttons.",
       "Category: Interaction.",
       "open first link.",
@@ -171,7 +171,6 @@ if (!SpeechRecognition) {
     }
   };
   recognition.onerror = (event) => {
-    // This is the error you saw:
     if (event.error === 'no-speech') {
       console.log("VoiceNav: No speech detected. Listening again.");
     }
@@ -301,12 +300,14 @@ if (!SpeechRecognition) {
     
     // --- CATEGORY: Content Reading ---
     } else if (command.includes("read page") || command.includes("read this section") || command.includes("start reading")) {
-      readCurrentSection(); // MODIFIED
+      readCurrentSection();
     } else if (command.includes("read from top")) {
-      readFromTop(); // NEW
+      readFromTop();
     } else if (command.includes("list headings") || command.includes("show outline")) {
-      listHeadings(); // NEW
-    } else if (command.includes("stop reading") || command === "stop") {
+      listHeadings();
+      
+    // --- NEW: "stop listening" added ---
+    } else if (command.includes("stop reading") || command === "stop" || command.includes("stop listening")) {
       speechQueue = [];
       isSpeakingQueue = false;
       chunksReadSincePrompt = 0;
