@@ -11,6 +11,8 @@
 - go forward
 - next page
 - forward
+- next heading
+- previous heading
 
 [Tab Management]
 - close tab
@@ -23,21 +25,31 @@
 
 [Content Reading]
 - read page
-- start reading
-- read article
 - read this section
+- start reading
+- read from top
+- list headings
+- show outline
 - stop reading
 - stop
 - read buttons
 - list buttons
 
 [Interaction]
-- open first link
-- open first article
 - click first link
+- click [text of link]
+- open [text of link]
 - find search
 - search website
 - search this site
+
+[Settings]
+- increase speed
+- speak faster
+- decrease speed
+- speak slower
+- next voice
+- change voice
 
 [System & Confirmation]
 - help

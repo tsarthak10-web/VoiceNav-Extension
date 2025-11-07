@@ -19,7 +19,7 @@ if (!SpeechRecognition) {
   // --- Inactivity Timer ---
   let inactivityTimer = null;
   
-  // --- Command List Array ---
+  // --- Command List Array (UPDATED) ---
   const allCommandsChunks = [
       "Here are all the commands.",
       "Category: Navigation.",
@@ -27,18 +27,27 @@ if (!SpeechRecognition) {
       "scroll up, or, go up.",
       "go back, or, previous page.",
       "go forward, or, next page.",
+      "next heading.",
+      "previous heading.",
       "Category: Tab Management.",
       "close tab.",
       "new tab.",
       "search for [your query].",
       "go to [website dot com].",
       "Category: Content Reading.",
-      "read page, or, start reading.",
+      "read page, or, read this section.",
+      "read from top.",
+      "list headings, or, show outline.",
       "stop reading, or, stop.",
       "read buttons, or, list buttons.",
       "Category: Interaction.",
-      "open first link.",
+      "click first link.",
+      "click [text of link].",
       "find search, or, search this website.",
+      "Category: Settings.",
+      "increase speed, or, speak faster.",
+      "decrease speed, or, speak slower.",
+      "next voice, or, change voice.",
       "Category: System.",
       "help, or, what can i say.",
       "read all commands.",
@@ -198,8 +207,10 @@ if (!SpeechRecognition) {
       
       if (action.type === 'readButtons') {
         if (command.includes('yes') || command.includes('confirm')) {
-          const buttonList = action.data.join(' . ');
-          speak(`The buttons are: . ${buttonList}`);
+          speechQueue = action.data.map(text => "Button: " + text); 
+          isSpeakingQueue = true;
+          chunksReadSincePrompt = 0;
+          speakNextChunk(); // Use the queue
         } else if (command.includes('no') || command.includes('cancel')) {
           speak("Okay, action cancelled.");
         }
@@ -242,6 +253,24 @@ if (!SpeechRecognition) {
       history.back(); 
     } else if (command.includes("go forward") || command.includes("next page") || command === "forward") {
       history.forward();
+    } else if (command.includes("next heading")) {
+      const headings = getCleanHeadings();
+      const nextHeading = headings.find(h => h.getBoundingClientRect().top > 5);
+      if (nextHeading) {
+        nextHeading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        speak(nextHeading.textContent);
+      } else {
+        speak("End of headings.");
+      }
+    } else if (command.includes("previous heading")) {
+      const headings = getCleanHeadings();
+      const prevHeading = headings.reverse().find(h => h.getBoundingClientRect().top < -5);
+      if (prevHeading) {
+        prevHeading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        speak(prevHeading.textContent);
+      } else {
+        speak("Start of headings.");
+      }
     
     // --- CATEGORY: Tab Management ---
     } else if (command.includes("close tab") || command.includes("close this tab")) {
@@ -252,20 +281,19 @@ if (!SpeechRecognition) {
       const query = command.substring(11);
       speak(`Searching for ${query}`);
       chrome.runtime.sendMessage({ command: "search", query: query });
-    } else if (command.startsWith("go to ") || command.startsWith("open ")) {
-      let url;
-      if (command.startsWith("go to ")) {
-        url = command.substring(6);
-      } else {
-        url = command.substring(5);
-      }
+    } else if (command.startsWith("go to ")) {
+      let url = command.substring(6);
       url = url.replace(/ dot /g, '.').replace(/\s/g, ''); 
       speak(`Opening ${url}`);
       chrome.runtime.sendMessage({ command: "openUrl", url: url });
     
     // --- CATEGORY: Content Reading ---
-    } else if (command.includes("read page") || command.includes("start reading") || command.includes("read article") || command.includes("read this section")) {
-      readMainContent();
+    } else if (command.includes("read page") || command.includes("read this section") || command.includes("start reading")) {
+      readCurrentSection(); // MODIFIED
+    } else if (command.includes("read from top")) {
+      readFromTop(); // NEW
+    } else if (command.includes("list headings") || command.includes("show outline")) {
+      listHeadings(); // NEW
     } else if (command.includes("stop reading") || command === "stop") {
       speechQueue = [];
       isSpeakingQueue = false;
@@ -275,23 +303,72 @@ if (!SpeechRecognition) {
       speak("Stopping.");
       stopListening(); // Call silent stop
     } else if (command.includes("read buttons") || command.includes("list buttons")) {
+      
+      const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint', '[role="navigation"]', '[role="complementary"]', '#p-lang'];
+      const junkButtonText = [
+        'search', 'hide', 'show', 'move to sidebar', 
+        'expand all', 'jump to navigation', 'jump to search'
+      ];
+
       const buttons = document.querySelectorAll('button, [role="button"]');
-      const buttonTexts = Array.from(buttons).map(b => b.textContent.trim()).filter(t => t.length > 0);
-      if (buttonTexts.length > 0) {
-        pendingAction = { type: 'readButtons', data: buttonTexts };
-        speak(`I found ${buttonTexts.length} buttons. Would you like me to read them?`);
+      
+      const cleanButtonTexts = Array.from(buttons)
+        .map(btn => {
+          let text = (btn.textContent || btn.getAttribute('aria-label') || '').trim().toLowerCase();
+          return { el: btn, text: text };
+        })
+        .filter(item => {
+          if (item.text.length === 0) return false;
+          if (item.el.closest(junkSelectors.join(', '))) return false;
+          if (junkButtonText.includes(item.text)) return false;
+          return (item.el.offsetWidth > 0 || item.el.offsetHeight > 0);
+        })
+        .map(item => item.text.charAt(0).toUpperCase() + item.text.slice(1)); // Capitalize
+      
+      const uniqueButtonTexts = [...new Set(cleanButtonTexts)];
+
+      if (uniqueButtonTexts.length > 0) {
+        pendingAction = { type: 'readButtons', data: uniqueButtonTexts };
+        speak(`I found ${uniqueButtonTexts.length} useful buttons. Would you like me to read them?`);
       } else {
-        speak("I could not find any buttons on this page.");
+        speak("I could not find any useful buttons on this page.");
       }
     
     // --- CATEGORY: Interaction ---
-    } else if (command.includes("open first link") || command.includes("open first article") || command.includes("click first link")) {
+    } else if (command.includes("click first link")) {
       const firstLink = document.querySelector('article a, main a, a');
       if (firstLink) {
         speak(`Opening link: ${firstLink.textContent}`);
         firstLink.click();
       } else {
         speak("No links found.");
+      }
+    } else if (command.startsWith("click ") || command.startsWith("open ")) {
+      let linkText;
+      if (command.startsWith("click ")) {
+        linkText = command.substring(6);
+      } else {
+        linkText = command.substring(5);
+      }
+      
+      const allLinks = Array.from(document.querySelectorAll('a'));
+      const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
+      
+      const cleanLinks = allLinks.filter(el => {
+        return (el.offsetWidth > 0 || el.offsetHeight > 0) && 
+               !el.closest(junkSelectors.join(', ')) &&
+               el.textContent.trim().length > 0;
+      });
+
+      const targetLink = cleanLinks.find(link => 
+        link.textContent.trim().toLowerCase().includes(linkText)
+      );
+      
+      if (targetLink) {
+        speak(`Clicking ${targetLink.textContent}.`);
+        targetLink.click();
+      } else {
+        speak(`Sorry, I could not find a link for ${linkText}.`);
       }
     } else if (command.includes("find search") || command.includes("search website") || command.includes("search this site")) {
       const searchInput = findSearchInput();
@@ -303,13 +380,45 @@ if (!SpeechRecognition) {
         speak("Sorry, I could not find a search bar on this page.");
       }
     
-    // --- CATEGORY: System ---
+    // --- CATEGORY: System & Settings ---
     } else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands") || command === "commands") {
-      const helpText = "Basic commands are: . read page. . stop reading. . find search. . close tab. . To hear all commands, say, . read all commands.";
+      const helpText = "Basic commands are: . read page. . stop reading. . next heading. . click [link text]. . list headings. . find search. . close tab. . To hear all commands, say, . read all commands.";
       speak(helpText);
     } else if (command.includes("read all commands")) {
       pendingAction = { type: 'confirmReadAllCommands' };
       speak("This is a long list. Do you want me to read all commands?");
+    } else if (command.includes("increase speed") || command.includes("speak faster")) {
+      chrome.storage.sync.get('speechRate', (data) => {
+        let newRate = (data.speechRate || 1.0) + 0.25;
+        if (newRate > 2.5) newRate = 2.5; // Max speed
+        chrome.storage.sync.set({ speechRate: newRate });
+        speak(`Speed set to ${newRate.toFixed(2)}.`);
+      });
+    } else if (command.includes("decrease speed") || command.includes("speak slower")) {
+      chrome.storage.sync.get('speechRate', (data) => {
+        let newRate = (data.speechRate || 1.0) - 0.25;
+        if (newRate < 0.5) newRate = 0.5; // Min speed
+        chrome.storage.sync.set({ speechRate: newRate });
+        speak(`Speed set to ${newRate.toFixed(2)}.`);
+      });
+    } else if (command.includes("next voice") || command.includes("change voice")) {
+      chrome.tts.getVoices((voices) => {
+        const englishVoices = voices.filter(v => v.lang.includes('en'));
+        if (englishVoices.length === 0) {
+          speak("No other voices are available.");
+          return;
+        }
+        chrome.storage.sync.get('selectedVoice', (data) => {
+          const currentVoiceName = data.selectedVoice;
+          let currentIndex = englishVoices.findIndex(v => v.voiceName === currentVoiceName);
+          
+          let nextIndex = (currentIndex + 1) % englishVoices.length;
+          let nextVoice = englishVoices[nextIndex];
+          
+          chrome.storage.sync.set({ selectedVoice: nextVoice.voiceName });
+          speak(`Voice changed to ${nextVoice.voiceName}.`);
+        });
+      });
     }
   }
 
@@ -325,7 +434,8 @@ if (!SpeechRecognition) {
   
   // --- speakNextChunk ---
   function speakNextChunk() {
-    if (isSpeakingQueue && chunksReadSincePrompt >= 5) {
+    // Check if 5 items have been read (and not in "read all" bypass mode)
+    if (isSpeakingQueue && chunksReadSincePrompt >= 5 && chunksReadSincePrompt > 0) {
       isSpeakingQueue = false; // Pause the queue
       chunksReadSincePrompt = 0; // Reset the counter
       pendingAction = { type: 'continueReading' };
@@ -334,7 +444,7 @@ if (!SpeechRecognition) {
     }
     if (speechQueue.length > 0 && isSpeakingQueue) {
       const chunk = speechQueue.shift();
-      chunksReadSincePrompt++; // This will be -999, -998... for "read all"
+      chunksReadSincePrompt++;
       speak(chunk);
     } else {
       isSpeakingQueue = false;
@@ -365,43 +475,95 @@ if (!SpeechRecognition) {
     }
     return null;
   }
-
-  // --- readMainContent ---
-  function readMainContent() {
-    let contentChunks = [];
+  
+  // --- getCleanHeadings() ---
+  function getCleanHeadings(getEntries = false) {
+    const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint', '[role="navigation"]', '[role="complementary"]'];
+    const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
     
-    const mainElement = document.querySelector('article') || 
-                        document.querySelector('main') || 
-                        document.querySelector('div#mw-content-text') || 
-                        document.body;
-    
-    const mainClone = mainElement.cloneNode(true);
-
-    const junkSelectors = [
-        'aside', 'nav', 'header', 'footer',
-        '.infobox', '.sidebar', '.widget', '.ad', '.ads',
-        '.advert', '.comment', '.promo', '.noprint',
-        '[class*="sidebar"]', '[class*="widget"]', '[class*="ad-"]',
-        '[class*="promo-"]', '[class**="comment-"]', '[class*="footer"]',
-        '[class*="header"]', '[class*="infobox"]', '[role="navigation"]',
-        '[role="complementary"]', '[role="banner"]', '[role="contentinfo"]',
-        '#footer', '#header', '#sidebar'
-    ];
-
-    mainClone.querySelectorAll(junkSelectors.join(', ')).forEach(el => {
-        el.remove(); // Remove the junk
+    const cleanHeadings = allHeadings.filter(el => {
+      return (el.offsetWidth > 0 || el.offsetHeight > 0) && !el.closest(junkSelectors.join(', '));
     });
 
-    const readableElements = mainClone.querySelectorAll('h1, h2, h3, h4, p, li');
+    if (getEntries) {
+      return cleanHeadings.map(el => ({ 
+        text: el.textContent.trim(), 
+        level: el.tagName[1] 
+      }));
+    }
+    return cleanHeadings;
+  }
 
-    if (readableElements.length > 0) {
-      readableElements.forEach(el => {
-        el.querySelectorAll(
+  // --- NEW: listHeadings() ---
+  function listHeadings() {
+    const headingEntries = getCleanHeadings(true); // Get {text, level} objects
+    
+    if (headingEntries.length === 0) {
+      speak("No headings found on this page.");
+      return;
+    }
+    
+    const contentChunks = headingEntries.map(h => `Heading ${h.level}: ${h.text}`);
+    
+    speechQueue = contentChunks;
+    isSpeakingQueue = true;
+    chunksReadSincePrompt = 0; 
+    speakNextChunk();
+  }
+
+  // --- NEW: findCurrentElement() ---
+  // Finds the first readable element at or just above the top of the viewport
+  function findCurrentElement() {
+    const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
+    const readableElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
+    
+    let bestElement = null;
+    
+    for (const el of readableElements) {
+        const rect = el.getBoundingClientRect();
+        // Find first visible element that is not junk
+        if (rect.top >= 0 && rect.top < window.innerHeight && !el.closest(junkSelectors.join(','))) {
+           bestElement = el;
+           break;
+        }
+    }
+    return bestElement;
+  }
+  
+  // --- NEW: readCurrentSection() ---
+  // Reads from the current viewport position
+  function readCurrentSection() {
+    const currentEl = findCurrentElement();
+    if (!currentEl) {
+      speak("No readable text found on screen.");
+      return;
+    }
+    
+    let sectionElements = [currentEl];
+    let nextEl = currentEl.nextElementSibling;
+    
+    // Keep adding elements until we hit the next heading
+    while (nextEl && !nextEl.tagName.startsWith('H')) {
+      sectionElements.push(nextEl);
+      nextEl = nextEl.nextElementSibling;
+    }
+    
+    // Now process these elements
+    let contentChunks = [];
+    if (sectionElements.length > 0) {
+      sectionElements.forEach(el => {
+        // Only process readable tags
+        if (!['P', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName)) {
+            return;
+        }
+        
+        const elClone = el.cloneNode(true);
+        elClone.querySelectorAll(
           'sup', 'button', '[role="button"]',
           '[aria-hidden="true"]', '.mw-editsection'
         ).forEach(child => child.remove());
         
-        const cleanText = el.textContent.trim();
+        const cleanText = elClone.textContent.trim();
         
         if (cleanText.length > 0) {
           const sentences = cleanText.split('.')
@@ -413,6 +575,54 @@ if (!SpeechRecognition) {
     }
 
     if (contentChunks.length === 0) {
+      speak("No readable text content found in this section.");
+    } else {
+      speechQueue = contentChunks;
+      isSpeakingQueue = true;
+      chunksReadSincePrompt = 0; 
+      speakNextChunk();
+    }
+  }
+
+  // --- readFromTop() ---
+  // This is the old "readMainContent" logic
+  function readFromTop() {
+    let contentChunks = [];
+    const mainElement = document.querySelector('article') || 
+                        document.querySelector('main') || 
+                        document.querySelector('div#mw-content-text') || 
+                        document.body;
+    const mainClone = mainElement.cloneNode(true);
+    const junkSelectors = [
+        'aside', 'nav', 'header', 'footer',
+        '.infobox', '.sidebar', '.widget', '.ad', '.ads',
+        '.advert', '.comment', '.promo', '.noprint',
+        '[class*="sidebar"]', '[class*="widget"]', '[class*="ad-"]',
+        '[class*="promo-"]', '[class*="comment-"]', '[class*="footer"]',
+        '[class*="header"]', '[class*="infobox"]', '[role="navigation"]',
+        '[role="complementary"]', '[role="banner"]', '[role="contentinfo"]',
+        '#footer', '#header', '#sidebar'
+    ];
+    mainClone.querySelectorAll(junkSelectors.join(', ')).forEach(el => {
+        el.remove();
+    });
+    const readableElements = mainClone.querySelectorAll('h1, h2, h3, h4, p, li');
+    if (readableElements.length > 0) {
+      readableElements.forEach(el => {
+        el.querySelectorAll(
+          'sup', 'button', '[role="button"]',
+          '[aria-hidden="true"]', '.mw-editsection'
+        ).forEach(child => child.remove());
+        const cleanText = el.textContent.trim();
+        if (cleanText.length > 0) {
+          const sentences = cleanText.split('.')
+                                     .filter(s => s.trim().length > 0)
+                                     .map(s => s.trim() + '.');
+          contentChunks.push(...sentences);
+        }
+      });
+    }
+    if (contentChunks.length === 0) {
       speak("No readable text content found.");
     } else {
       speechQueue = contentChunks;
@@ -422,7 +632,7 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. MODIFIED: Message Listener
+  // 5. Message Listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -439,13 +649,9 @@ if (!SpeechRecognition) {
         startListening();
       }
       sendResponse({ status: isListening ? "Now listening" : "Now stopped" });
-    
-    // --- NEW: Handle silent stop ---
     } else if (request.command === "silentStop") {
       stopListening(); // Call the silent stop
       sendResponse({ status: "silently stopped" });
-    // --- END NEW ---
-    
     } else if (request.command === "getStatus") {
       sendResponse({ isListening: isListening });
     } else if (request.command === "getLog") {
