@@ -7,8 +7,7 @@ if (!SpeechRecognition) {
 } else {
   const recognition = new SpeechRecognition();
   
-  // NEW: Load the recognition sound
-  const recognitionSound = new Audio(chrome.runtime.getURL('beep.mp3'));
+  // REMOVED: const recognitionSound = new Audio(...)
   
   let isListening = false;
   let commandLog = []; 
@@ -138,7 +137,8 @@ if (!SpeechRecognition) {
 
   // --- Event Handlers for Recognition ---
   recognition.onresult = (event) => {
-    recognitionSound.play(); // NEW: Play the sound immediately
+    // NEW: Tell background to play beep
+    chrome.runtime.sendMessage({ command: "playBeep" });
     resetInactivityTimer(); // Reset timer on successful command
     
     const lastResult = event.results[event.results.length - 1];
@@ -171,7 +171,11 @@ if (!SpeechRecognition) {
     }
   };
   recognition.onerror = (event) => {
-    if (event.error === 'not-allowed') {
+    // This is the error you saw:
+    if (event.error === 'no-speech') {
+      console.log("VoiceNav: No speech detected. Listening again.");
+    }
+    else if (event.error === 'not-allowed') {
       speak("Microphone access was denied.");
       stopListening();
     }
@@ -284,8 +288,13 @@ if (!SpeechRecognition) {
       const query = command.substring(11);
       speak(`Searching for ${query}`);
       chrome.runtime.sendMessage({ command: "search", query: query });
-    } else if (command.startsWith("go to ")) {
-      let url = command.substring(6);
+    } else if (command.startsWith("go to ") || command.startsWith("open ")) {
+      let url;
+      if (command.startsWith("go to ")) {
+        url = command.substring(6);
+      } else {
+        url = command.substring(5);
+      }
       url = url.replace(/ dot /g, '.').replace(/\s/g, ''); 
       speak(`Opening ${url}`);
       chrome.runtime.sendMessage({ command: "openUrl", url: url });
@@ -499,25 +508,7 @@ if (!SpeechRecognition) {
     return cleanHeadings;
   }
 
-  // --- NEW: listHeadings() ---
-  function listHeadings() {
-    const headingEntries = getCleanHeadings(true); // Get {text, level} objects
-    
-    if (headingEntries.length === 0) {
-      speak("No headings found on this page.");
-      return;
-    }
-    
-    const contentChunks = headingEntries.map(h => `Heading ${h.level}: ${h.text}`);
-    
-    speechQueue = contentChunks;
-    isSpeakingQueue = true;
-    chunksReadSincePrompt = 0; 
-    speakNextChunk();
-  }
-
-  // --- NEW: findCurrentElement() ---
-  // Finds the first readable element at or just above the top of the viewport
+  // --- findCurrentElement() ---
   function findCurrentElement() {
     const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
     const readableElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
@@ -535,8 +526,7 @@ if (!SpeechRecognition) {
     return bestElement;
   }
   
-  // --- NEW: readCurrentSection() ---
-  // Reads from the current viewport position
+  // --- readCurrentSection() ---
   function readCurrentSection() {
     const currentEl = findCurrentElement();
     if (!currentEl) {
@@ -590,7 +580,6 @@ if (!SpeechRecognition) {
   }
 
   // --- readFromTop() ---
-  // This is the old "readMainContent" logic
   function readFromTop() {
     let contentChunks = [];
     const mainElement = document.querySelector('article') || 

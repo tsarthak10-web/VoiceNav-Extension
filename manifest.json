@@ -29,11 +29,5 @@
       },
       "description": "Start or stop voice listening on the current page"
     }
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["cling.mp3"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  }
 }

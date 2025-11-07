@@ -28,7 +28,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const speakOptions = {
           onEvent: (event) => {
             if (event.type === 'end' || event.type === 'interrupted' || event.type === 'cancelled') {
-              // Check if the tab still exists before sending a message
               chrome.tabs.get(sender.tab.id, (tab) => {
                 if (!chrome.runtime.lastError) {
                   chrome.tabs.sendMessage(sender.tab.id, { command: "speechEnded" });
@@ -48,6 +47,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true; // Keep channel open for async calls
   }
+  
+  // --- NEW: Handle Beep ---
+  else if (request.command === "playBeep") {
+    chrome.storage.sync.get(['speechRate'], (result) => {
+      chrome.tts.stop(); // Stop any current speech
+      // Play a short, high-pitched "click" sound
+      chrome.tts.speak("k", { 
+        rate: 2.5, // Play it super fast
+        pitch: 2.0, // Make it high-pitched
+        volume: 0.5 // Make it a bit quieter
+      });
+    });
+    return true; // Keep channel open
+  }
+  // --- END NEW ---
 
   // 2. Handle state tracking
   if (request.command === "startListening") {
@@ -61,40 +75,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ isActive: isActive });
   }
   
-  // --- 3. MODIFIED: Handle Tab Management ---
+  // 3. Handle Tab Management
   if (request.command === "closeTab") {
     if (sender.tab) {
       activeTabs.delete(sender.tab.id); // Remove from set
       chrome.tabs.remove(sender.tab.id);
     }
   } else if (request.command === "newTab") {
-    // 1. Deactivate old tab
     if (sender.tab) {
        activeTabs.delete(sender.tab.id);
        chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
     }
-    // 2. Create and activate new tab
     chrome.tabs.create({ url: "https://www.google.com", active: true }, (newTab) => {
       activeTabs.add(newTab.id);
     });
   } else if (request.command === "search" && request.query) {
-    // 1. Deactivate old tab
     if (sender.tab) {
        activeTabs.delete(sender.tab.id);
        chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
     }
-    // 2. Create and activate new tab
     const url = `https://www.google.com/search?q=${encodeURIComponent(request.query)}`;
     chrome.tabs.create({ url: url, active: true }, (newTab) => {
       activeTabs.add(newTab.id);
     });
   } else if (request.command === "openUrl" && request.url) {
-    // 1. Deactivate old tab
     if (sender.tab) {
        activeTabs.delete(sender.tab.id);
        chrome.tabs.sendMessage(sender.tab.id, { command: "silentStop" });
     }
-    // 2. Create and activate new tab
     let url = request.url;
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
@@ -103,7 +111,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       activeTabs.add(newTab.id);
     });
   }
-  // --- END MODIFIED ---
   
   return true;
 });
