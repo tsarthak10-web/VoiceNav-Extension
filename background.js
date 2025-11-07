@@ -23,10 +23,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. Handle speak commands
   if (request.command === "speak") {
     if (sender.tab) { 
-      
-      // MODIFIED: Get both voice and rate
       chrome.storage.sync.get(['selectedVoice', 'speechRate'], (result) => {
-        
         chrome.tts.stop(); 
         const speakOptions = {
           onEvent: (event) => {
@@ -35,17 +32,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             }
           }
         };
-
-        // Add saved voice
         if (result.selectedVoice) {
           speakOptions.voiceName = result.selectedVoice;
         }
-
-        // NEW: Add saved rate
         if (result.speechRate) {
           speakOptions.rate = parseFloat(result.speechRate);
         }
-        
         chrome.tts.speak(request.text, speakOptions);
       });
     }
@@ -54,15 +46,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 2. Handle state tracking
   if (request.command === "startListening") {
-    activeTabs.add(sender.tab.id);
+    if(sender.tab) activeTabs.add(sender.tab.id);
     sendResponse({ status: "started" });
   } else if (request.command === "stopListening") {
-    activeTabs.delete(sender.tab.id);
+    if(sender.tab) activeTabs.delete(sender.tab.id);
     sendResponse({ status: "stopped" });
   } else if (request.command === "queryActiveStatus") {
-    const isActive = activeTabs.has(sender.tab.id);
+    const isActive = sender.tab ? activeTabs.has(sender.tab.id) : false;
     sendResponse({ isActive: isActive });
   }
+  
+  // --- 3. NEW: Handle Tab Management ---
+  if (request.command === "closeTab") {
+    if (sender.tab) {
+      chrome.tabs.remove(sender.tab.id);
+    }
+  } else if (request.command === "newTab") {
+    chrome.tabs.create({ active: true });
+  } else if (request.command === "search" && request.query) {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(request.query)}`;
+    chrome.tabs.create({ url: url });
+  } else if (request.command === "openUrl" && request.url) {
+    let url = request.url;
+    // Add "https://" if no protocol is specified
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    chrome.tabs.create({ url: url });
+  }
+  // --- END NEW ---
   
   return true;
 });

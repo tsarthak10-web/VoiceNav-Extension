@@ -2,6 +2,7 @@
 const mainView = document.getElementById('main-view');
 const settingsView = document.getElementById('settings-view');
 const logsView = document.getElementById('logs-view');
+const cmdView = document.getElementById('cmd-view');
 
 document.addEventListener('DOMContentLoaded', () => {
   // Nav Buttons
@@ -14,6 +15,11 @@ document.addEventListener('DOMContentLoaded', () => {
     mainView.style.display = 'none';
     logsView.style.display = 'block';
   });
+  
+  document.getElementById('cmd-btn').addEventListener('click', () => {
+    mainView.style.display = 'none';
+    cmdView.style.display = 'block';
+  });
 
   // Back Buttons
   document.querySelectorAll('.back-btn').forEach(btn => {
@@ -21,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mainView.style.display = 'block';
       settingsView.style.display = 'none';
       logsView.style.display = 'none';
+      cmdView.style.display = 'none';
     });
   });
 
@@ -46,25 +53,22 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('manageShortcutsBtn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
   });
+  
+  // --- "Read All" button listener removed ---
 
-  // --- NEW: Speed Slider Logic ---
+  // --- Speed Slider Logic ---
   const speedSlider = document.getElementById('speedSlider');
   const speedValue = document.getElementById('speedValue');
-
-  // 1. Load saved speed
   chrome.storage.sync.get('speechRate', (data) => {
     const rate = data.speechRate || 1.0;
     speedSlider.value = rate;
     speedValue.textContent = `${parseFloat(rate).toFixed(1)}x`;
   });
-
-  // 2. Listen for slider changes
   speedSlider.addEventListener('input', () => {
     const rate = speedSlider.value;
     speedValue.textContent = `${parseFloat(rate).toFixed(1)}x`;
     chrome.storage.sync.set({ speechRate: rate });
   });
-  // --- END NEW ---
 });
 
 // --- Existing Logic ---

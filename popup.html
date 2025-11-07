@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <style>
   :root {
-    /* --- Light Mode (Default) --- */
+    /* ... (all CSS variables are the same) ... */
     --bg-color: #ffffff;
     --bg-secondary: #f5f5f5;
     --text-color: #222222;
@@ -16,9 +16,7 @@
     --danger-hover: #a71d2a;
     --disabled-color: #cccccc;
   }
-
   body.dark-mode {
-    /* --- Dark Mode Variables --- */
     --bg-color: #2b2b2b;
     --bg-secondary: #3c3c3c;
     --text-color: #e0e0e0;
@@ -26,7 +24,6 @@
     --border-color: #4a4a4a;
     --disabled-color: #555555;
   }
-
   body {
     width: 260px;
     margin: 0;
@@ -35,13 +32,12 @@
     color: var(--text-color);
     transition: height 0.1s ease-out;
   }
-
   .view {
     padding: 16px;
     box-sizing: border-box;
   }
   
-  #settings-view, #logs-view {
+  #settings-view, #logs-view, #cmd-view {
     display: none;
   }
 
@@ -96,7 +92,6 @@
     font-size: 16px;
     font-weight: 600;
   }
-
   .button-group {
     display: flex;
     gap: 10px;
@@ -130,7 +125,7 @@
     background-color: var(--danger-hover);
   }
 
-  /* --- Settings & Logs --- */
+  /* --- Settings, Logs, Commands --- */
   .setting-item {
     display: flex;
     justify-content: space-between;
@@ -162,7 +157,7 @@
     font-weight: 600;
     color: var(--text-light);
   }
-
+  
   .log-container {
     text-align: left;
     margin-top: 16px;
@@ -185,19 +180,38 @@
     word-wrap: break-word;
     padding: 2px 4px;
   }
-
-  /* --- Toggle Switch --- */
+  
+  .cmd-list {
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 8px;
+    margin-top: 15px;
+  }
+  .cmd-list strong {
+    font-size: 14px;
+    display: block;
+    margin-top: 10px;
+    color: var(--text-color);
+  }
+  .cmd-list ul {
+    margin: 4px 0 0;
+    padding-left: 20px;
+  }
+  .cmd-list li {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 2px;
+  }
+  
   .switch {
     position: relative;
     display: inline-block;
     width: 50px;
     height: 28px;
   }
-  .switch input { 
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
+  .switch input { opacity: 0; width: 0; height: 0; }
   .slider {
     position: absolute;
     cursor: pointer;
@@ -220,14 +234,8 @@
     transition: .4s;
     border-radius: 50%;
   }
-  input:checked + .slider {
-    background-color: var(--accent-color);
-  }
-  input:checked + .slider:before {
-    transform: translateX(22px);
-  }
-
-  /* --- Settings Button Style --- */
+  input:checked + .slider { background-color: var(--accent-color); }
+  input:checked + .slider:before { transform: translateX(22px); }
   .button-settings {
     width: 100%;
     margin-top: 20px;
@@ -240,10 +248,7 @@
     color: var(--text-color);
     border: 1px solid var(--border-color);
   }
-  .button-settings:hover {
-    background-color: var(--border-color);
-  }
-  
+  .button-settings:hover { background-color: var(--border-color); }
 </style>
 </head>
 <body>
@@ -252,11 +257,14 @@
     <div class="header">
       <h3>VoiceNav</h3>
       <div>
+        <button id="cmd-btn" class="nav-button" title="Commands">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm-8-4H7v-2h2v2zm4 0h-2v-2h2v2zm4 0h-2v-2h2v2zm0-4H7V7h10v2z"></path></svg>
+        </button>
         <button id="logs-btn" class="nav-button" title="View Logs">
           <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"></path></svg>
         </button>
         <button id="settings-btn" class="nav-button" title="Settings">
-          <svg viewBox="0 0 24 24"><path d="M19.4 12.3c.1-.3.1-.6 0-.9l1.7-1.3c.3-.2.4-.6.3-1l-1.5-2.6c-.1-.3-.4-.5-.7-.4l-2 .8c-.4-.3-.8-.5-1.3-.7l-.3-2.1c0-.4-.3-.6-.7-.6h-3c-.4 0-.7.3-.7.6l-.3 2.1c-.5.2-.9.4-1.3.7l-2-.8c-.3-.1-.7 0-.8.4l-1.5 2.6c-.1.3 0 .7.3 1l1.7 1.3c-.1.3-.1.6 0 .9l-1.7 1.3c-.3.2-.4.6-.3 1l1.5 2.6c.1.3.4.5.7.4l2-.8c.4.3.8.5 1.3.7l.3 2.1c0 .4.3.6.7.6h3c.4 0 .7-.3.7.6l.3-2.1c.5-.2.9-.4 1.3-.7l2 .8c.3.1.7 0 .8-.4l1.5-2.6c.1-.3 0-.7-.3-1l-1.7-1.3zM12 15c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"></path></svg>
+          <svg viewBox="0 0 24 24"><path d="M19.4 12.3c.1-.3.1-.6 0-.9l1.7-1.3c.3-.2.4-.6.3-1l-1.5-2.6c-.1-.3-.4-.5-.7-.4l-2 .8c-.4-.3-.8-.5-1.3-.7l-.3-2.1c0-.4-.3-.6-.7-.6h-3c-.4 0-.7.3-.7.6l-.3 2.1c-.5.2-.9-.4-1.3-.7l-2-.8c-.3-.1-.7 0-.8.4l-1.5 2.6c-.1.3 0 .7.3 1l1.7 1.3c-.1.3-.1.6 0 .9l-1.7 1.3c-.3.2-.4.6-.3 1l1.5 2.6c.1.3.4.5.7.4l2-.8c.4.3.8.5 1.3.7l.3 2.1c0 .4.3.6.7.6h3c.4 0 .7-.3.7.6l.3-2.1c.5-.2.9-.4 1.3-.7l2 .8c.3.1.7 0 .8-.4l1.5-2.6c.1-.3 0-.7-.3-1l-1.7-1.3zM12 15c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"></path></svg>
         </button>
       </div>
     </div>
@@ -276,8 +284,8 @@
         <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"></path></svg>
       </button>
       <h3>Settings</h3>
-      <span style="width: 28px;"></span> </div>
-    
+      <span style="width: 28px;"></span>
+    </div>
     <div class="setting-item">
       <label for="darkModeToggle">Dark Mode</label>
       <label class="switch">
@@ -285,14 +293,12 @@
         <span class="slider"></span>
       </label>
     </div>
-
     <div class="setting-item-column">
       <label for="voiceSelect" style="margin-top: 10px;">Select Voice:</label>
       <select id="voiceSelect">
         <option value="">Loading voices...</option>
       </select>
     </div>
-
     <div class="setting-item-column">
       <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; margin-top: 10px;">
         <label for="speedSlider">Speaking Speed</label>
@@ -300,9 +306,7 @@
       </div>
       <input type="range" id="speedSlider" min="0.5" max="2.5" step="0.1" value="1.0">
     </div>
-    
     <button id="manageShortcutsBtn" class="button-settings">Manage Shortcuts</button>
-
   </div>
 
   <div id="logs-view" class="view">
@@ -320,6 +324,50 @@
     <div id="speechLogContainer" class="log-container">
       <strong>Speech Log:</strong>
       <ul id="speechLogList" class="log-list"></ul>
+    </div>
+  </div>
+
+  <div id="cmd-view" class="view">
+    <div class="header">
+      <button class="nav-button back-btn" title="Back">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"></path></svg>
+      </button>
+      <h3>Commands</h3>
+      <span style="width: 28px;"></span>
+    </div>
+    
+    <div class="cmd-list">
+      <strong>Navigation</strong>
+      <ul>
+        <li>"scroll down", "go down"</li>
+        <li>"scroll up", "go up"</li>
+        <li>"go back", "previous page"</li>
+        <li>"go forward", "next page"</li>
+      </ul>
+      <strong>Tab Management</strong>
+      <ul>
+        <li>"close tab", "close this tab"</li>
+        <li>"new tab", "open new tab"</li>
+        <li>"search for [query]"</li>
+        <li>"go to [website.com]"</li>
+      </ul>
+      <strong>Content Reading</strong>
+      <ul>
+        <li>"read page", "start reading"</li>
+        <li>"stop reading", "stop"</li>
+        <li>"read buttons", "list buttons"</li>
+      </ul>
+      <strong>Interaction</strong>
+      <ul>
+        <li>"open first link"</li>
+      </ul>
+      <strong>System</strong>
+      <ul>
+        <li>"help", "what can i say"</li>
+        <li>"read all commands"</li>
+        <li>"yes", "confirm"</li>
+        <li>"no", "cancel"</li>
+      </ul>
     </div>
   </div>
 

@@ -12,6 +12,15 @@
 - next page
 - forward
 
+[Tab Management]
+- close tab
+- close this tab
+- new tab
+- open new tab
+- search for [your query]
+- go to [website.com]
+- open [website.com]
+
 [Content Reading]
 - read page
 - start reading
@@ -32,6 +41,7 @@
 - what can i say
 - show commands
 - commands
+- read all commands
 - yes
 - confirm
 - no
