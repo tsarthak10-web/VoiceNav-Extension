@@ -6,6 +6,10 @@ if (!SpeechRecognition) {
   console.error("VoiceNav Error: Speech Recognition API not supported.");
 } else {
   const recognition = new SpeechRecognition();
+  
+  // NEW: Load the recognition sound
+  const recognitionSound = new Audio(chrome.runtime.getURL('beep.mp3'));
+  
   let isListening = false;
   let commandLog = []; 
   let speechLog = []; 
@@ -19,7 +23,7 @@ if (!SpeechRecognition) {
   // --- Inactivity Timer ---
   let inactivityTimer = null;
   
-  // --- Command List Array (UPDATED) ---
+  // --- Command List Array ---
   const allCommandsChunks = [
       "Here are all the commands.",
       "Category: Navigation.",
@@ -35,13 +39,11 @@ if (!SpeechRecognition) {
       "search for [your query].",
       "go to [website dot com].",
       "Category: Content Reading.",
-      "read page, or, read this section.",
-      "read from top.",
-      "list headings, or, show outline.",
+      "read page, or, start reading.",
       "stop reading, or, stop.",
       "read buttons, or, list buttons.",
       "Category: Interaction.",
-      "click first link.",
+      "open first link.",
       "click [text of link].",
       "find search, or, search this website.",
       "Category: Settings.",
@@ -136,6 +138,7 @@ if (!SpeechRecognition) {
 
   // --- Event Handlers for Recognition ---
   recognition.onresult = (event) => {
+    recognitionSound.play(); // NEW: Play the sound immediately
     resetInactivityTimer(); // Reset timer on successful command
     
     const lastResult = event.results[event.results.length - 1];
@@ -479,9 +482,11 @@ if (!SpeechRecognition) {
   // --- getCleanHeadings() ---
   function getCleanHeadings(getEntries = false) {
     const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint', '[role="navigation"]', '[role="complementary"]'];
+    
     const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
     
     const cleanHeadings = allHeadings.filter(el => {
+      // Is it visible and not inside junk?
       return (el.offsetWidth > 0 || el.offsetHeight > 0) && !el.closest(junkSelectors.join(', '));
     });
 
@@ -563,7 +568,7 @@ if (!SpeechRecognition) {
           '[aria-hidden="true"]', '.mw-editsection'
         ).forEach(child => child.remove());
         
-        const cleanText = elClone.textContent.trim();
+        const cleanText = el.textContent.trim();
         
         if (cleanText.length > 0) {
           const sentences = cleanText.split('.')
