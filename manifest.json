@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "VoiceNav - Voice-Guided Navigator",
+  "version": "1.1",
+  "description": "Browse the web using natural speech commands.",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "toggle-listening": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Start or stop voice listening on the current page"
+    }
+  }
+}
