@@ -142,16 +142,21 @@ if (!SpeechRecognition) {
   function readMainContent() {
     let content = '';
     
-    // Select the best main content area
-    const mainElement = document.querySelector('div#mw-content-text') || 
-                        document.querySelector('article') || 
+    // --- NEW GENERIC SELECTOR ---
+    // 1. Look for standard <article> tag (common on news sites).
+    // 2. Fall back to standard <main> tag.
+    // 3. Fall back to Wikipedia's specific content ID.
+    // 4. If all else fails, use the whole <body>.
+    const mainElement = document.querySelector('article') || 
                         document.querySelector('main') || 
+                        document.querySelector('div#mw-content-text') || 
                         document.body;
     
     // Select all potential readable elements *within* that container
     const allReadableElements = mainElement.querySelectorAll('h1, h2, h3, h4, p, li');
 
-    // --- NEW, MORE ROBUST FILTER ---
+    // --- NEW GENERIC FILTER ---
+    // This is the most important change
     const visibleAndValidElements = Array.from(allReadableElements)
       .filter(el => {
         // 1. Is the element on the screen?
@@ -159,16 +164,20 @@ if (!SpeechRecognition) {
         
         // 2. Is the element *inside* a container we want to ignore?
         //    el.closest() checks the element itself and all its parents
+        //    [class*="..."] checks for a class that *contains* the word.
+        //    This is how we make it work on almost any site.
         const inJunk = el.closest(
-            '.infobox',     // Wikipedia infoboxes (the right-hand table)
-            '.sidebar',     // General sidebars
-            'nav',          // Navigation menus
-            '.noprint',     // "No print" sections
-            '.mw-indicators', // Wikipedia header indicators
-            '#siteSub',     // "From Wikipedia..."
-            '#catlinks',    // Category links at the bottom
-            '.portal',      // Wiki portals
-            '.sister-project' // Wikiquote, Wikivoyage, etc.
+            'aside',          // Standard HTML tag for sidebars
+            'nav',            // Standard HTML tag for navigation
+            'header',         // Standard HTML tag for headers
+            'footer',         // Standard HTML tag for footers
+            '[class*="ad"]',        // Any element with "ad" in its class
+            '[class*="sidebar"]',   // Any element with "sidebar" in its class
+            '[class*="comment"]',   // Any element with "comment" in its class
+            '[class*="widget"]',    // Any element with "widget" in its class
+            '[class*="promo"]',     // Any element with "promo" in its class
+            '[class*="infobox"]',   // Catches Wikipedia's infobox
+            '.noprint'        // "No print" sections
         );
         
         // 3. Only include it if it's IN VIEWPORT and NOT IN JUNK
@@ -184,15 +193,15 @@ if (!SpeechRecognition) {
         
         // Now we just clean up in-line junk
         elClone.querySelectorAll(
-          'sup.reference',      // Wikipedia citations [1], [2]
-          '.mw-editsection',    // Wikipedia [edit] links
-          '[aria-hidden="true"]' // Screen-reader hidden content
+          'sup',                // Superscript text (like citations)
+          'button',             // Buttons
+          '[role="button"]',
+          '[aria-hidden="true"]'
         ).forEach(child => child.remove());
         
         // Get the cleaned text
         const cleanText = elClone.textContent.trim();
         
-        // Add a period for better pause between elements
         if (cleanText.length > 0) {
           content += cleanText + '. ';
         }

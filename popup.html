@@ -1,85 +1,309 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      width: 220px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      text-align: center;
-      padding: 10px;
-    }
-    button {
-      border: none;
-      padding: 10px 20px;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      width: 100%;
-      margin-top: 5px;
-    }
-    #startButton {
-      background-color: #007bff;
-      color: white;
-    }
-    #stopButton {
-      background-color: #dc3545;
-      color: white;
-    }
-    button:hover:not(:disabled) {
-      opacity: 0.8;
-    }
-    button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    #status {
-      font-size: 14px;
-      margin-top: 10px;
-      color: #333;
-      font-weight: bold;
-    }
-    
-    /* Styles for the log containers */
-    .log-container {
-      text-align: left;
-      margin-top: 15px;
-      border-top: 1px solid #ccc;
-      padding-top: 10px;
-      max-height: 100px; /* Reduced height to fit both */
-      overflow-y: auto;
-    }
-    .log-container strong {
-      font-size: 12px;
-      color: #333;
-    }
-    .log-list {
-      padding-left: 15px;
-      margin: 5px 0 0;
-      list-style-type: none;
-    }
-    .log-list li {
-      font-size: 12px;
-      color: #555;
-      word-wrap: break-word;
-    }
-  </style>
+<meta charset="UTF-8">
+<style>
+  :root {
+    /* --- Light Mode (Default) --- */
+    --bg-color: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --text-color: #222222;
+    --text-light: #555555;
+    --border-color: #eeeeee;
+    --accent-color: #007bff;
+    --accent-hover: #0056b3;
+    --danger-color: #dc3545;
+    --danger-hover: #a71d2a;
+    --disabled-color: #cccccc;
+  }
+
+  body.dark-mode {
+    /* --- Dark Mode Variables --- */
+    --bg-color: #2b2b2b;
+    --bg-secondary: #3c3c3c;
+    --text-color: #e0e0e0;
+    --text-light: #aaaaaa;
+    --border-color: #4a4a4a;
+    --disabled-color: #555555;
+  }
+
+  body {
+    width: 260px;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: height 0.1s ease-out;
+  }
+
+  .view {
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  
+  #settings-view, #logs-view {
+    display: none;
+  }
+
+  /* --- Header / Nav --- */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  h3 {
+    margin: 0;
+    font-size: 18px;
+  }
+  .nav-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+  }
+  .nav-button:hover {
+    background-color: var(--bg-secondary);
+  }
+  .nav-button svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--text-light);
+  }
+
+  /* --- Main View --- */
+  #status-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+  #status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--text-light);
+    margin-right: 10px;
+  }
+  #status-indicator.listening {
+    background-color: #28a745;
+  }
+  #status-text {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .button-group {
+    display: flex;
+    gap: 10px;
+  }
+  .button {
+    flex: 1;
+    border: none;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .button:disabled {
+    background-color: var(--bg-secondary);
+    color: var(--disabled-color);
+    cursor: not-allowed;
+  }
+  #startButton {
+    background-color: var(--accent-color);
+    color: white;
+  }
+  #startButton:not(:disabled):hover {
+    background-color: var(--accent-hover);
+  }
+  #stopButton {
+    background-color: var(--danger-color);
+    color: white;
+  }
+  #stopButton:not(:disabled):hover {
+    background-color: var(--danger-hover);
+  }
+
+  /* --- Settings & Logs --- */
+  .setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .setting-item label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  #voiceSelect {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 14px;
+  }
+
+  .log-container {
+    text-align: left;
+    margin-top: 16px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+  }
+  /* ... (log styles) ... */
+  .log-list {
+    padding-left: 0;
+    margin: 8px 0 0;
+    list-style-type: none;
+    max-height: 150px;
+    overflow-y: auto;
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 8px;
+  }
+  .log-list li {
+    font-size: 12px;
+    color: var(--text-light);
+    word-wrap: break-word;
+    padding: 2px 4px;
+  }
+
+  /* --- Toggle Switch --- */
+  /* ... (switch styles) ... */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+  }
+  .switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 28px;
+  }
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+  }
+  input:checked + .slider {
+    background-color: var(--accent-color);
+  }
+  input:checked + .slider:before {
+    transform: translateX(22px);
+  }
+
+  /* --- NEW: Settings Button Style --- */
+  .button-settings {
+    width: 100%;
+    margin-top: 20px;
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    background-color: var(--bg-secondary);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+  }
+  .button-settings:hover {
+    background-color: var(--border-color);
+  }
+  
+</style>
 </head>
 <body>
-  <h3>VoiceNav</h3>
-  <div id="status">Status: Stopped</div>
-  <button id="startButton">Start Listening</button>
-  <button id="stopButton">Stop Listening</button>
 
-  <div id="logContainer" class="log-container">
-    <strong>Command Log:</strong>
-    <ul id="commandLogList" class="log-list">
-      </ul>
+  <div id="main-view" class="view">
+    <div class="header">
+      <h3>VoiceNav</h3>
+      <div>
+        <button id="logs-btn" class="nav-button" title="View Logs">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"></path></svg>
+        </button>
+        <button id="settings-btn" class="nav-button" title="Settings">
+          <svg viewBox="0 0 24 24"><path d="M19.4 12.3c.1-.3.1-.6 0-.9l1.7-1.3c.3-.2.4-.6.3-1l-1.5-2.6c-.1-.3-.4-.5-.7-.4l-2 .8c-.4-.3-.8-.5-1.3-.7l-.3-2.1c0-.4-.3-.6-.7-.6h-3c-.4 0-.7.3-.7.6l-.3 2.1c-.5.2-.9.4-1.3.7l-2-.8c-.3-.1-.7 0-.8.4l-1.5 2.6c-.1.3 0 .7.3 1l1.7 1.3c-.1.3-.1.6 0 .9l-1.7 1.3c-.3.2-.4.6-.3 1l1.5 2.6c.1.3.4.5.7.4l2-.8c.4.3.8.5 1.3.7l.3 2.1c0 .4.3.6.7.6h3c.4 0 .7-.3.7.6l.3-2.1c.5-.2.9-.4 1.3-.7l2 .8c.3.1.7 0 .8-.4l1.5-2.6c.1-.3 0-.7-.3-1l-1.7-1.3zM12 15c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"></path></svg>
+        </button>
+      </div>
+    </div>
+    <div id="status-container">
+      <span id="status-indicator"></span>
+      <span id="status-text">Status: Stopped</span>
+    </div>
+    <div class="button-group">
+      <button id="startButton" class="button">Start</button>
+      <button id="stopButton" class="button">Stop</button>
+    </div>
   </div>
 
-  <div id="speechLogContainer" class="log-container">
-    <strong>Speech Log:</strong>
-    <ul id="speechLogList" class="log-list">
-      </ul>
+  <div id="settings-view" class="view">
+    <div class="header">
+      <button class="nav-button back-btn" title="Back">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"></path></svg>
+      </button>
+      <h3>Settings</h3>
+      <span style="width: 28px;"></span> </div>
+    
+    <div class="setting-item">
+      <label for="darkModeToggle">Dark Mode</label>
+      <label class="switch">
+        <input type="checkbox" id="darkModeToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="setting-item" style="flex-direction: column; align-items: flex-start;">
+      <label for="voiceSelect" style="margin-top: 10px;">Select Voice:</label>
+      <select id="voiceSelect">
+        <option value="">Loading voices...</option>
+      </select>
+    </div>
+
+    <button id="manageShortcutsBtn" class="button-settings">Manage Shortcuts</button>
+
+  </div>
+
+  <div id="logs-view" class="view">
+    <div class="header">
+      <button class="nav-button back-btn" title="Back">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z"></path></svg>
+      </button>
+      <h3>Logs</h3>
+      <span style="width: 28px;"></span>
+    </div>
+    <div id="logContainer" class="log-container">
+      <strong>Command Log:</strong>
+      <ul id="commandLogList" class="log-list"></ul>
+    </div>
+    <div id="speechLogContainer" class="log-container">
+      <strong>Speech Log:</strong>
+      <ul id="speechLogList" class="log-list"></ul>
+    </div>
   </div>
 
   <script src="popup.js"></script>
