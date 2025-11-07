@@ -25,7 +25,7 @@ if (!SpeechRecognition) {
     } catch (e) {
       console.warn("VoiceNav:", e.message);
     }
-    // NEW: Broadcast the status change to the popup
+    // Broadcast the status change to the popup
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: true });
   }
 
@@ -35,7 +35,7 @@ if (!SpeechRecognition) {
     recognition.stop();
     synthesis.cancel(); // Stop any speech
     speak("Voice navigation deactivated.");
-    // NEW: Broadcast the status change to the popup
+    // Broadcast the status change to the popup
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: false });
   }
 
@@ -65,8 +65,7 @@ if (!SpeechRecognition) {
   };
 
   // --- Command and Control Logic ---
-  // (All functions handleCommand, speak, readMainContent remain unchanged)
-
+  
   function handleCommand(command) {
     if (command.includes("scroll down")) {
       window.scrollBy(0, 500);
@@ -89,6 +88,12 @@ if (!SpeechRecognition) {
     } else if (command.includes("stop reading")) {
       synthesis.cancel();
     }
+    // --- START OF NEW CODE ---
+    else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands")) {
+      const helpText = "Here are the commands you can use: . Scroll down. . Scroll up. . Go back. . Go forward. . Open first link. . Read page. . Stop reading. . and . Help.";
+      speak(helpText);
+    }
+    // --- END OF NEW CODE ---
   }
 
   function speak(text) {
