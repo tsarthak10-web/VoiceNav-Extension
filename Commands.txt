@@ -13,6 +13,7 @@
 - forward
 - next heading
 - previous heading
+- go to [text of heading or link]
 
 [Tab Management]
 - close tab
@@ -58,6 +59,8 @@
 - show commands
 - commands
 - read all commands
+- where am i
+- read title
 - yes
 - confirm
 - no

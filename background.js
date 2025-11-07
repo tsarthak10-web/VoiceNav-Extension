@@ -24,7 +24,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.command === "speak") {
     if (sender.tab) { 
       chrome.storage.sync.get(['selectedVoice', 'speechRate'], (result) => {
-        chrome.tts.stop(); 
+        chrome.tts.stop(); // Stop previous main speech
         const speakOptions = {
           onEvent: (event) => {
             if (event.type === 'end' || event.type === 'interrupted' || event.type === 'cancelled') {
@@ -48,20 +48,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Keep channel open for async calls
   }
   
-  // --- NEW: Handle Beep ---
+  // 2. Handle Beep
   else if (request.command === "playBeep") {
-    chrome.tts.stop(); // Stop any current speech
-    // Play a short, high-pitched "click" sound
+    // MODIFIED: Do NOT call chrome.tts.stop() here
+    // This allows the beep to play *over* other speech if necessary
     chrome.tts.speak("k", { 
-      rate: 2.5, // Play it super fast
+      rate: 4.0, // Play it super fast
       pitch: 2.0, // Make it high-pitched
-      volume: 0.5 // Make it a bit quieter
+      volume: 0.3 // Make it quiet
     });
     return true; // Keep channel open
   }
-  // --- END NEW ---
 
-  // 2. Handle state tracking
+  // 3. Handle state tracking
   if (request.command === "startListening") {
     if(sender.tab) activeTabs.add(sender.tab.id);
     sendResponse({ status: "started" });
@@ -73,7 +72,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ isActive: isActive });
   }
   
-  // 3. Handle Tab Management
+  // 4. Handle Tab Management
   if (request.command === "closeTab") {
     if (sender.tab) {
       activeTabs.delete(sender.tab.id); // Remove from set

@@ -7,9 +7,8 @@ if (!SpeechRecognition) {
 } else {
   const recognition = new SpeechRecognition();
   
-  // REMOVED: const recognitionSound = new Audio(...)
-  
   let isListening = false;
+  let isSpeaking = false; // NEW: Flag to check if TTS is active
   let commandLog = []; 
   let speechLog = []; 
   let pendingAction = null; 
@@ -32,18 +31,20 @@ if (!SpeechRecognition) {
       "go forward, or, next page.",
       "next heading.",
       "previous heading.",
+      "go to [text of heading or link].",
       "Category: Tab Management.",
       "close tab.",
       "new tab.",
       "search for [your query].",
       "go to [website dot com].",
       "Category: Content Reading.",
-      "read page, or, start reading.",
-      "stop reading, stop, or, stop listening.",
+      "read page, or, read this section.",
+      "read from top.",
+      "list headings, or, show outline.",
+      "stop reading, or, stop.",
       "read buttons, or, list buttons.",
       "Category: Interaction.",
-      "open first link.",
-      "click [text of link].",
+      "click first link.",
       "find search, or, search this website.",
       "Category: Settings.",
       "increase speed, or, speak faster.",
@@ -52,6 +53,7 @@ if (!SpeechRecognition) {
       "Category: System.",
       "help, or, what can i say.",
       "read all commands.",
+      "where am i, or, read title.",
       "yes, or, confirm.",
       "no, or, cancel.",
   ];
@@ -137,7 +139,12 @@ if (!SpeechRecognition) {
 
   // --- Event Handlers for Recognition ---
   recognition.onresult = (event) => {
-    // NEW: Tell background to play beep
+    // NEW: Check if the extension is currently speaking
+    if (isSpeaking) {
+      console.log("VoiceNav: Ignoring self-speech.");
+      return;
+    }
+    
     chrome.runtime.sendMessage({ command: "playBeep" });
     resetInactivityTimer(); // Reset timer on successful command
     
@@ -287,16 +294,6 @@ if (!SpeechRecognition) {
       const query = command.substring(11);
       speak(`Searching for ${query}`);
       chrome.runtime.sendMessage({ command: "search", query: query });
-    } else if (command.startsWith("go to ") || command.startsWith("open ")) {
-      let url;
-      if (command.startsWith("go to ")) {
-        url = command.substring(6);
-      } else {
-        url = command.substring(5);
-      }
-      url = url.replace(/ dot /g, '.').replace(/\s/g, ''); 
-      speak(`Opening ${url}`);
-      chrome.runtime.sendMessage({ command: "openUrl", url: url });
     
     // --- CATEGORY: Content Reading ---
     } else if (command.includes("read page") || command.includes("read this section") || command.includes("start reading")) {
@@ -305,8 +302,6 @@ if (!SpeechRecognition) {
       readFromTop();
     } else if (command.includes("list headings") || command.includes("show outline")) {
       listHeadings();
-      
-    // --- NEW: "stop listening" added ---
     } else if (command.includes("stop reading") || command === "stop" || command.includes("stop listening")) {
       speechQueue = [];
       isSpeakingQueue = false;
@@ -347,7 +342,7 @@ if (!SpeechRecognition) {
         speak("I could not find any useful buttons on this page.");
       }
     
-    // --- CATEGORY: Interaction ---
+    // --- CATEGORY: Interaction & Navigation ---
     } else if (command.includes("click first link")) {
       const firstLink = document.querySelector('article a, main a, a');
       if (firstLink) {
@@ -356,32 +351,20 @@ if (!SpeechRecognition) {
       } else {
         speak("No links found.");
       }
-    } else if (command.startsWith("click ") || command.startsWith("open ")) {
-      let linkText;
-      if (command.startsWith("click ")) {
-        linkText = command.substring(6);
+    } else if (command.startsWith("click ") || command.startsWith("open ") || command.startsWith("go to ")) {
+      let targetText;
+      if (command.startsWith("click ")) targetText = command.substring(6);
+      else if (command.startsWith("open ")) targetText = command.substring(5);
+      else targetText = command.substring(6); // "go to "
+      
+      // Check if it's a "go to [website]" command
+      if (command.startsWith("go to ") || (command.startsWith("open ") && targetText.includes("."))) {
+         let url = targetText.replace(/ dot /g, '.').replace(/\s/g, ''); 
+         speak(`Opening ${url}`);
+         chrome.runtime.sendMessage({ command: "openUrl", url: url });
       } else {
-        linkText = command.substring(5);
-      }
-      
-      const allLinks = Array.from(document.querySelectorAll('a'));
-      const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
-      
-      const cleanLinks = allLinks.filter(el => {
-        return (el.offsetWidth > 0 || el.offsetHeight > 0) && 
-               !el.closest(junkSelectors.join(', ')) &&
-               el.textContent.trim().length > 0;
-      });
-
-      const targetLink = cleanLinks.find(link => 
-        link.textContent.trim().toLowerCase().includes(linkText)
-      );
-      
-      if (targetLink) {
-        speak(`Clicking ${targetLink.textContent}.`);
-        targetLink.click();
-      } else {
-        speak(`Sorry, I could not find a link for ${linkText}.`);
+        // It's a "click [text]" or "go to [text]" command for the page
+        findAndActivate(targetText);
       }
     } else if (command.includes("find search") || command.includes("search website") || command.includes("search this site")) {
       const searchInput = findSearchInput();
@@ -395,7 +378,7 @@ if (!SpeechRecognition) {
     
     // --- CATEGORY: System & Settings ---
     } else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands") || command === "commands") {
-      const helpText = "Basic commands are: . read page. . stop reading. . next heading. . click [link text]. . list headings. . find search. . close tab. . To hear all commands, say, . read all commands.";
+      const helpText = "Basic commands are: . read page. . stop reading. . next heading. . go to [text]. . list headings. . find search. . close tab. . To hear all commands, say, . read all commands.";
       speak(helpText);
     } else if (command.includes("read all commands")) {
       pendingAction = { type: 'confirmReadAllCommands' };
@@ -432,16 +415,19 @@ if (!SpeechRecognition) {
           speak(`Voice changed to ${nextVoice.voiceName}.`);
         });
       });
+    // --- NEW: Where am I ---
+    } else if (command.includes("where am i") || command.includes("read title")) {
+      speak(document.title);
     }
+    // --- END NEW ---
   }
 
-  // --- speak function ---
+  // --- speak function (MODIFIED) ---
   function speak(text) {
+    isSpeaking = true; // NEW: Set flag
     speechLog.push(text);
     chrome.runtime.sendMessage({ newCommandLogEntry: text });
-    if (isListening) {
-        recognition.stop();
-    }
+    // REMOVED: recognition.stop()
     chrome.runtime.sendMessage({ command: "speak", text: text });
   }
   
@@ -508,6 +494,37 @@ if (!SpeechRecognition) {
     }
     return cleanHeadings;
   }
+
+  // --- NEW: findAndActivate() ---
+  function findAndActivate(text) {
+    const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
+    const allLinks = Array.from(document.querySelectorAll('a'));
+    const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
+    // Combine links and headings into one list
+    const cleanEls = [...allLinks, ...allHeadings].filter(el => {
+      return (el.offsetWidth > 0 || el.offsetHeight > 0) &&
+             !el.closest(junkSelectors.join(', ')) &&
+             el.textContent.trim().length > 0;
+    });
+
+    const targetEl = cleanEls.find(el => 
+      el.textContent.trim().toLowerCase().includes(text)
+    );
+
+    if (targetEl) {
+      if (targetEl.tagName === 'A') {
+        speak(`Clicking ${targetEl.textContent}.`);
+        targetEl.click();
+      } else { // It's a heading
+        speak(`Moving to ${targetEl.textContent}.`);
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      speak(`Sorry, I could not find ${text}.`);
+    }
+  }
+  // --- END NEW ---
 
   // --- findCurrentElement() ---
   function findCurrentElement() {
@@ -627,7 +644,7 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. Message Listener
+  // 5. Message Listener (MODIFIED)
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -655,6 +672,7 @@ if (!SpeechRecognition) {
       sendResponse({ log: speechLog });
     } 
     else if (request.command === "speechEnded") {
+      isSpeaking = false; // NEW: Set flag
       if (isSpeakingQueue) {
         speakNextChunk();
       } else if (isListening) {

@@ -7,19 +7,23 @@ A Chrome extension designed to help visually impaired users navigate the web usi
 * **Voice-First Interface:** Control your browser, navigate pages, and access settings entirely with your voice.
 * **Audio Feedback:** Plays a quick "beep" sound on successful command recognition so you know you've been heard.
 * **Smart Content Reading:**
-    * Say **"read page"** to read the main article from your current position, 5 sentences at a time.
-    * Say **"list headings"** to get a spoken outline of the page's structure.
-    * Say **"read from top"** to read the full article from the beginning.
+    * **"read page" / "read this section"**: Reads the main article from your current screen position, 5 sentences at a time.
+    * **"list headings"**: Gives a spoken outline of the page's structure (e.g., "Heading 2: History"), 5 headings at a time.
+    * **"read from top"**: Reads the full article from the very beginning.
 * **Contextual Navigation:**
-    * Jump between sections using **"next heading"** and **"previous heading."**
-    * Click any link on the page by saying **"click [text of link]"**.
+    * **"next heading" / "previous heading"**: Jumps between the main sections of the article.
+    * **"go to [text]" / "click [text]"**: A powerful command that finds any link *or* heading on the page that matches your text and jumps to it.
 * **Page & Tab Control:**
-    * Open new tabs (to Google), close the current tab, and go back/forward in your history.
-    * Search Google ("search for [query]") or open a website ("go to [website dot com]").
-* **Accessible Settings:** All settings are controllable by voice:
-    * **"increase/decrease speed"**
-    * **"next voice"**
+    * **"new tab"**: Opens a new tab to Google.com and automatically starts listening.
+    * **"close tab"**: Closes the current tab.
+    * **"go back" / "go forward"**: Navigates your browser history.
+    * **"search for [query]"**: Opens a new tab and searches Google for your query.
+    * **"go to [website dot com]"**: Opens a new tab to the specified website.
+* **Accessible Settings (All by Voice):**
+    * **"increase/decrease speed"**: Changes the speaking speed.
+    * **"next voice"**: Cycles through the available English voices.
 * **Smart Automation:**
+    * **"where am I"**: Reads the title of the current page.
     * Automatically stops listening after 2 minutes of inactivity.
     * Automatically continues listening when you navigate to a new page or open a new tab.
 
@@ -65,6 +69,7 @@ Here is a full list of commands the extension understands:
 - forward
 - next heading
 - previous heading
+- go to [text of heading or link]
 
 [Tab Management]
 - close tab
@@ -106,4 +111,13 @@ Here is a full list of commands the extension understands:
 
 [System & Confirmation]
 - help
-- what
+- what can i say
+- show commands
+- commands
+- read all commands
+- where am i
+- read title
+- yes
+- confirm
+- no
+- cancel
