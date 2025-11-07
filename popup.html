@@ -39,31 +39,29 @@
       font-weight: bold;
     }
     
-    /* --- NEW STYLES --- */
-    #logContainer {
+    /* Styles for the log containers */
+    .log-container {
       text-align: left;
       margin-top: 15px;
       border-top: 1px solid #ccc;
       padding-top: 10px;
-      max-height: 150px;
+      max-height: 100px; /* Reduced height to fit both */
       overflow-y: auto;
     }
-    #logContainer strong {
+    .log-container strong {
       font-size: 12px;
       color: #333;
     }
-    #logList {
+    .log-list {
       padding-left: 15px;
       margin: 5px 0 0;
       list-style-type: none;
     }
-    #logList li {
+    .log-list li {
       font-size: 12px;
       color: #555;
       word-wrap: break-word;
     }
-    /* --- END OF NEW STYLES --- */
-
   </style>
 </head>
 <body>
@@ -72,11 +70,18 @@
   <button id="startButton">Start Listening</button>
   <button id="stopButton">Stop Listening</button>
 
-  <div id="logContainer">
+  <div id="logContainer" class="log-container">
     <strong>Command Log:</strong>
-    <ul id="logList">
+    <ul id="commandLogList" class="log-list">
       </ul>
   </div>
+
+  <div id="speechLogContainer" class="log-container">
+    <strong>Speech Log:</strong>
+    <ul id="speechLogList" class="log-list">
+      </ul>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

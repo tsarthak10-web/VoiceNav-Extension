@@ -1,6 +1,6 @@
 // 1. Initialize Speech Recognition (STT) and Synthesis (TTS)
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const synthesis = window.speechSynthesis;
+// const synthesis = window.speechSynthesis; // <-- We NO LONGER use this
 
 // Check if the browser supports the Web Speech API
 if (!SpeechRecognition) {
@@ -8,8 +8,9 @@ if (!SpeechRecognition) {
 } else {
   const recognition = new SpeechRecognition();
   let isListening = false;
-  let commandLog = [];
-  let pendingAction = null; // NEW: To manage confirmation steps
+  let commandLog = []; 
+  let speechLog = []; 
+  let pendingAction = null; 
 
   // Configure recognition
   recognition.continuous = true;
@@ -17,9 +18,10 @@ if (!SpeechRecognition) {
   recognition.lang = 'en-US';
 
   // --- Core Recognition Functions ---
+  // (startListening is unchanged)
 
   function startListening() {
-    if (isListening) return;
+    if (isListening) return; 
     isListening = true;
     try {
       recognition.start();
@@ -34,20 +36,21 @@ if (!SpeechRecognition) {
     if (!isListening) return;
     isListening = false;
     recognition.stop();
-    synthesis.cancel();
-    pendingAction = null; // NEW: Clear any pending actions
-    speak("Voice navigation deactivated.");
+    pendingAction = null; 
     chrome.runtime.sendMessage({ statusUpdate: true, isListening: false });
+    // Speak *after* setting state. This will stop previous speech.
+    speak("Voice navigation deactivated."); 
   }
 
   // --- Event Handlers for Recognition ---
+  // (onresult and onend are unchanged)
 
   recognition.onresult = (event) => {
     const lastResult = event.results[event.results.length - 1];
     const command = lastResult[0].transcript.trim().toLowerCase();
 
     commandLog.push(command);
-    chrome.runtime.sendMessage({ newLogEntry: command });
+    chrome.runtime.sendMessage({ newCommandLogEntry: command }); 
 
     console.log("VoiceNav Command:", command);
     handleCommand(command);
@@ -68,28 +71,23 @@ if (!SpeechRecognition) {
   };
 
   // --- Command and Control Logic ---
+  // (handleCommand is almost the same)
   
   function handleCommand(command) {
-    // --- NEW: Handle pending confirmation ---
     if (pendingAction) {
-      const action = pendingAction; // Copy action
-      pendingAction = null; // Clear it immediately
-
+      const action = pendingAction; 
+      pendingAction = null; 
       if (command.includes('yes') || command.includes('confirm')) {
         if (action.type === 'readButtons') {
           const buttonList = action.data.join(' . ');
           speak(`The buttons are: . ${buttonList}`);
         }
-        return; // Action was handled
+        return; 
       } else if (command.includes('no') || command.includes('cancel')) {
         speak("Okay, action cancelled.");
-        return; // Action was handled
+        return; 
       }
-      // If the command wasn't "yes" or "no", we fall through
-      // and treat it as a new, separate command, cancelling the pending one.
     }
-    // --- END: Handle pending confirmation ---
-
 
     if (command.includes("scroll down")) {
       window.scrollBy(0, 500);
@@ -110,15 +108,14 @@ if (!SpeechRecognition) {
     } else if (command.includes("read this section aloud") || command.includes("read page")) {
       readMainContent();
     } else if (command.includes("stop reading")) {
-      synthesis.cancel();
+      // MODIFIED: Tell the background TTS to stop
+      chrome.runtime.sendMessage({ command: "speak", text: "" }); // Sends empty text to stop
     }
-    // --- NEW: Read Buttons Command ---
     else if (command.includes("read buttons") || command.includes("list buttons")) {
       const buttons = document.querySelectorAll('button, [role="button"]');
       const buttonTexts = Array.from(buttons)
                                 .map(b => b.textContent.trim())
                                 .filter(t => t.length > 0);
-      
       if (buttonTexts.length > 0) {
         pendingAction = { type: 'readButtons', data: buttonTexts };
         speak(`I found ${buttonTexts.length} buttons. Would you like me to read them?`);
@@ -126,74 +123,60 @@ if (!SpeechRecognition) {
         speak("I could not find any buttons on this page.");
       }
     }
-    // --- END: Read Buttons Command ---
     else if (command.includes("help") || command.includes("what can i say") || command.includes("show commands")) {
-      // MODIFIED: Added "read buttons" to help text
       const helpText = "Here are the commands you can use: . Scroll down. . Scroll up. . Go back. . Go forward. . Open first link. . Read page. . Read buttons. . Stop reading. . and . Help.";
       speak(helpText);
     }
   }
 
+  // --- NEW: speak() function ---
+  // This function now sends a message to background.js
   function speak(text) {
-    if (synthesis.speaking) {
-      synthesis.cancel();
-    }
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onend = () => {
-      if (isListening) {
-        try {
-          recognition.start();
-        } catch(e) {
-          console.log("Recognition stopped.");
-        }
-      }
-    };
+    // Log speech locally
+    speechLog.push(text);
+    chrome.runtime.sendMessage({ newSpeechLogEntry: text });
+
+    // Stop recognition *before* speaking
     if (isListening) {
         recognition.stop();
     }
-    synthesis.speak(utterance);
+    
+    // Tell the background script to speak
+    chrome.runtime.sendMessage({ command: "speak", text: text });
   }
 
-  // --- MODIFIED: readMainContent ---
+  // (isElementInViewport and readMainContent are unchanged)
+  function isElementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+    return (
+        rect.top < window.innerHeight && rect.bottom > 0
+    );
+  }
   function readMainContent() {
     let content = '';
     const mainElement = document.querySelector('main') || document.querySelector('article') || document.body;
-    
-    // Select main readable elements
-    const readableElements = mainElement.querySelectorAll('h1, h2, h3, p, li');
-
-    if (readableElements.length > 0) {
-      readableElements.forEach(el => {
-        // Clone the element to avoid changing the live page
+    const allReadableElements = mainElement.querySelectorAll('h1, h2, h3, p, li');
+    const visibleElements = Array.from(allReadableElements).filter(isElementInViewport);
+    if (visibleElements.length > 0) {
+      visibleElements.forEach(el => {
         const elClone = el.cloneNode(true);
-        
-        // Remove all links and buttons from the clone
-        elClone.querySelectorAll('a, button').forEach(child => child.remove());
-        
-        // Get the cleaned text
+        elClone.querySelectorAll(
+          'sup.reference', 'button', '[role="button"]', '[aria-hidden="true"]'
+        ).forEach(child => child.remove());
         const cleanText = elClone.textContent.trim();
-        
         if (cleanText.length > 0) {
           content += cleanText + ' . ';
         }
       });
-    } else {
-      // Fallback if no specific tags are found (with the same cleaning logic)
-      const mainClone = mainElement.cloneNode(true);
-      mainClone.querySelectorAll('a, button').forEach(child => child.remove());
-      content = mainClone.textContent;
     }
-
     if (content.trim().length === 0) {
-      speak("No readable text content found on this page.");
+      speak("No readable text content found on the screen.");
     } else {
       speak(content);
     }
   }
-  // --- END: MODIFIED readMainContent ---
 
-
-  // 5. Listen for messages from popup AND background script
+  // --- MODIFIED: Message Listener ---
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -212,7 +195,30 @@ if (!SpeechRecognition) {
       sendResponse({ isListening: isListening });
     } else if (request.command === "getLog") {
       sendResponse({ log: commandLog });
+    } else if (request.command === "getSpeechLog") {
+      sendResponse({ log: speechLog });
+    } 
+    // NEW: Listen for when speech has ended
+    else if (request.command === "speechEnded") {
+      // Now we can safely restart recognition
+      if (isListening) {
+        try {
+          recognition.start();
+        } catch(e) {
+          console.log("Recognition error on restart.");
+        }
+      }
     }
-    return true;
+    return true; // Keep channel open
   });
+
+  // --- Auto-start logic (unchanged) ---
+  (() => {
+    const autoStartFlag = sessionStorage.getItem('voiceNavAutoStart');
+    if (autoStartFlag === 'true') {
+      sessionStorage.removeItem('voiceNavAutoStart');
+      startListening();
+    }
+  })();
+  
 }
