@@ -21,7 +21,7 @@ if (!SpeechRecognition) {
   // --- Inactivity Timer ---
   let inactivityTimer = null;
   
-  // --- Command List Array (UPDATED) ---
+  // --- Command List Array (unchanged) ---
   const allCommandsChunks = [
       "Here are all the commands.",
       "Category: Navigation.",
@@ -45,6 +45,7 @@ if (!SpeechRecognition) {
       "read buttons, or, list buttons.",
       "Category: Interaction.",
       "click first link.",
+      "click [text of link].",
       "find search, or, search this website.",
       "Category: Settings.",
       "increase speed, or, speak faster.",
@@ -358,7 +359,7 @@ if (!SpeechRecognition) {
       else targetText = command.substring(6); // "go to "
       
       // Check if it's a "go to [website]" command
-      if (command.startsWith("go to ") || (command.startsWith("open ") && targetText.includes("."))) {
+      if (command.startsWith("go to ") || (command.startsWith("open ") && (targetText.includes(".") || targetText.includes(" dot ")))) {
          let url = targetText.replace(/ dot /g, '.').replace(/\s/g, ''); 
          speak(`Opening ${url}`);
          chrome.runtime.sendMessage({ command: "openUrl", url: url });
@@ -415,21 +416,21 @@ if (!SpeechRecognition) {
           speak(`Voice changed to ${nextVoice.voiceName}.`);
         });
       });
-    // --- NEW: Where am I ---
     } else if (command.includes("where am i") || command.includes("read title")) {
       speak(document.title);
     }
-    // --- END NEW ---
   }
 
-  // --- speak function (MODIFIED) ---
+  // --- MODIFIED: speak function ---
   function speak(text) {
     isSpeaking = true; // NEW: Set flag
     speechLog.push(text);
-    chrome.runtime.sendMessage({ newCommandLogEntry: text });
+    // MODIFIED: This is the typo fix.
+    chrome.runtime.sendMessage({ newSpeechLogEntry: text }); 
     // REMOVED: recognition.stop()
     chrome.runtime.sendMessage({ command: "speak", text: text });
   }
+  // --- END MODIFIED ---
   
   // --- speakNextChunk ---
   function speakNextChunk() {
@@ -495,7 +496,7 @@ if (!SpeechRecognition) {
     return cleanHeadings;
   }
 
-  // --- NEW: findAndActivate() ---
+  // --- findAndActivate() ---
   function findAndActivate(text) {
     const junkSelectors = ['aside', 'nav', 'header', 'footer', '.infobox', '.sidebar', '.noprint'];
     const allLinks = Array.from(document.querySelectorAll('a'));
@@ -524,7 +525,6 @@ if (!SpeechRecognition) {
       speak(`Sorry, I could not find ${text}.`);
     }
   }
-  // --- END NEW ---
 
   // --- findCurrentElement() ---
   function findCurrentElement() {
@@ -644,7 +644,7 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. Message Listener (MODIFIED)
+  // 5. Message Listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
