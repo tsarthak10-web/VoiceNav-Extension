@@ -24,10 +24,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.command === "speak") {
     if (sender.tab) { 
       chrome.storage.sync.get(['selectedVoice', 'speechRate'], (result) => {
-        chrome.tts.stop(); // Stop previous main speech
+        chrome.tts.stop(); 
         const speakOptions = {
           onEvent: (event) => {
             if (event.type === 'end' || event.type === 'interrupted' || event.type === 'cancelled') {
+              // Check if the tab still exists before sending a message
               chrome.tabs.get(sender.tab.id, (tab) => {
                 if (!chrome.runtime.lastError) {
                   chrome.tabs.sendMessage(sender.tab.id, { command: "speechEnded" });
@@ -45,19 +46,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.tts.speak(request.text, speakOptions);
       });
     }
-    return true; // Keep channel open for async calls
+    return true; // This is an async response, so we return true HERE
   }
   
   // 2. Handle Beep
   else if (request.command === "playBeep") {
-    // MODIFIED: Do NOT call chrome.tts.stop() here
-    // This allows the beep to play *over* other speech if necessary
+    chrome.tts.stop(); // Stop any current speech
+    // Play a short, high-pitched "click" sound
     chrome.tts.speak("k", { 
-      rate: 4.0, // Play it super fast
-      pitch: 2.0, // Make it high-pitched
-      volume: 0.3 // Make it quiet
+      rate: 2.5, pitch: 2.0, volume: 0.5 
     });
-    return true; // Keep channel open
+    // This is NOT async, so we don't return true
   }
 
   // 3. Handle state tracking
@@ -75,7 +74,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 4. Handle Tab Management
   if (request.command === "closeTab") {
     if (sender.tab) {
-      activeTabs.delete(sender.tab.id); // Remove from set
+      activeTabs.delete(sender.tab.id);
       chrome.tabs.remove(sender.tab.id);
     }
   } else if (request.command === "newTab") {
@@ -108,6 +107,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       activeTabs.add(newTab.id);
     });
   }
-  
-  return true;
 });

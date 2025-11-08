@@ -7,8 +7,9 @@ if (!SpeechRecognition) {
 } else {
   const recognition = new SpeechRecognition();
   
+  // REMOVED: let isSpeaking = false;
+  
   let isListening = false;
-  let isSpeaking = false; // NEW: Flag to check if TTS is active
   let commandLog = []; 
   let speechLog = []; 
   let pendingAction = null; 
@@ -138,13 +139,9 @@ if (!SpeechRecognition) {
     // NO speak() call here
   }
 
-  // --- Event Handlers for Recognition ---
+  // --- Event Handlers for Recognition (MODIFIED) ---
   recognition.onresult = (event) => {
-    // NEW: Check if the extension is currently speaking
-    if (isSpeaking) {
-      console.log("VoiceNav: Ignoring self-speech.");
-      return;
-    }
+    // REMOVED: The "if (isSpeaking)" check
     
     chrome.runtime.sendMessage({ command: "playBeep" });
     resetInactivityTimer(); // Reset timer on successful command
@@ -172,6 +169,8 @@ if (!SpeechRecognition) {
   recognition.onend = () => {
     if (isListening) {
       try {
+        // This restart is fine, as it only happens if the mic
+        // stops for a non-speech reason (like a network drop)
         recognition.start();
       } catch(e) {
         console.warn("VoiceNav: Restart error:", e.message);
@@ -189,7 +188,7 @@ if (!SpeechRecognition) {
     console.error("VoiceNav Error:", event.error);
   };
 
-  // --- handleCommand ---
+  // --- handleCommand (unchanged) ---
   function handleCommand(command) {
     if (pendingAction) {
       const action = pendingAction; 
@@ -423,11 +422,17 @@ if (!SpeechRecognition) {
 
   // --- MODIFIED: speak function ---
   function speak(text) {
-    isSpeaking = true; // NEW: Set flag
     speechLog.push(text);
-    // MODIFIED: This is the typo fix.
+    // --- BUG FIX #1: This now correctly sends to newSpeechLogEntry ---
     chrome.runtime.sendMessage({ newSpeechLogEntry: text }); 
-    // REMOVED: recognition.stop()
+    // --- END BUG FIX #1 ---
+
+    // --- RE-ADDED: Stop recognition while speaking ---
+    if (isListening) {
+        recognition.stop();
+    }
+    // --- END RE-ADDED ---
+    
     chrome.runtime.sendMessage({ command: "speak", text: text });
   }
   // --- END MODIFIED ---
@@ -644,7 +649,7 @@ if (!SpeechRecognition) {
     }
   }
   
-  // 5. Message Listener
+  // 5. MODIFIED: Message Listener
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.command === "startListening") {
       startListening();
@@ -672,14 +677,16 @@ if (!SpeechRecognition) {
       sendResponse({ log: speechLog });
     } 
     else if (request.command === "speechEnded") {
-      isSpeaking = false; // NEW: Set flag
+      // REMOVED: isSpeaking = false;
       if (isSpeakingQueue) {
         speakNextChunk();
       } else if (isListening) {
+        // This is the CRITICAL part:
+        // Restart recognition AFTER speech has ended
         try { recognition.start(); } catch(e) {}
       }
     }
-    return true; 
+    // We removed the "return true;" from the end
   });
 
   // --- Auto-start logic ---
@@ -698,3 +705,4 @@ if (!SpeechRecognition) {
   })();
   
 }
+
